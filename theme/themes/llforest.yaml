@@ -1,0 +1,39 @@
+# Converted from llforest.json by tools/theme_json_to_yaml.py
+
+name: llforest
+
+terminal_colors:
+  background: "#f5e6d3"
+  foreground: "#000000"
+  cursor: "#000000"
+  cursorAccent: "#f5e6d3"
+  selectionBackground: "#a1a1a1"
+  selectionForeground: "#ffffff"
+  black: "#000000"
+  red: "#cc0000"
+  green: "#008800"
+  yellow: "#cc6600"
+  blue: "#0000cc"
+  magenta: "#cc00cc"
+  cyan: "#008888"
+  white: "#808080"
+  brightBlack: "#666666"
+  brightRed: "#ff0000"
+  brightGreen: "#00cc00"
+  brightYellow: "#ffcc00"
+  brightBlue: "#0000ff"
+  brightMagenta: "#ff00ff"
+  brightCyan: "#00cccc"
+  brightWhite: "#ffffff"
+
+font_family: "JetBrains Mono, Cascadia Code, Consolas, Menlo, monospace"
+font_size: 14
+
+# UI chrome colors
+background_color: "#2c4a34"
+foreground_color: "#d6c6a9"
+border_color: "#8b7355"
+accent_color: "#8b7355"
+
+overlay_background: "rgba(44, 74, 52, 0.95)"
+overlay_text_color: "#d6c6a9"

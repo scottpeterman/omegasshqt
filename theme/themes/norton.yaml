@@ -1,0 +1,39 @@
+# Converted from norton.json by tools/theme_json_to_yaml.py
+
+name: norton
+
+terminal_colors:
+  background: "#0000aa"
+  foreground: "#ffffff"
+  cursor: "#ffffff"
+  cursorAccent: "#0000aa"
+  selectionBackground: "#55aaaa"
+  selectionForeground: "#000000"
+  black: "#000000"
+  red: "#ff5555"
+  green: "#55aa55"
+  yellow: "#ffff55"
+  blue: "#5555ff"
+  magenta: "#ff55ff"
+  cyan: "#55aaaa"
+  white: "#aaaaaa"
+  brightBlack: "#555555"
+  brightRed: "#ff5555"
+  brightGreen: "#55ff55"
+  brightYellow: "#ffff55"
+  brightBlue: "#5555ff"
+  brightMagenta: "#ff55ff"
+  brightCyan: "#55ffff"
+  brightWhite: "#ffffff"
+
+font_family: "JetBrains Mono, Cascadia Code, Consolas, Menlo, monospace"
+font_size: 14
+
+# UI chrome colors
+background_color: "#0000aa"
+foreground_color: "#ffffff"
+border_color: "#ffffff"
+accent_color: "#ffff55"
+
+overlay_background: "rgba(0, 0, 170, 0.95)"
+overlay_text_color: "#ffffff"

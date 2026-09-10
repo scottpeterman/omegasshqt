@@ -1,0 +1,39 @@
+# Converted from dark.json by tools/theme_json_to_yaml.py
+
+name: dark
+
+terminal_colors:
+  background: "#0f172a"
+  foreground: "#e2e8f0"
+  cursor: "#e2e8f0"
+  cursorAccent: "#0f172a"
+  selectionBackground: "#475569"
+  selectionForeground: "#e2e8f0"
+  black: "#1e293b"
+  red: "#ef4444"
+  green: "#22c55e"
+  yellow: "#eab308"
+  blue: "#3b82f6"
+  magenta: "#d946ef"
+  cyan: "#06b6d4"
+  white: "#f1f5f9"
+  brightBlack: "#475569"
+  brightRed: "#fca5a5"
+  brightGreen: "#86efac"
+  brightYellow: "#fde047"
+  brightBlue: "#93c5fd"
+  brightMagenta: "#f5d0fe"
+  brightCyan: "#67e8f9"
+  brightWhite: "#f8fafc"
+
+font_family: "JetBrains Mono, Cascadia Code, Consolas, Menlo, monospace"
+font_size: 14
+
+# UI chrome colors
+background_color: "#0f172a"
+foreground_color: "#e2e8f0"
+border_color: "#3b82f6"
+accent_color: "#3b82f6"
+
+overlay_background: "rgba(15, 23, 42, 0.95)"
+overlay_text_color: "#e2e8f0"

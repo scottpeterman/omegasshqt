@@ -1,0 +1,39 @@
+# Converted from amiga.json by tools/theme_json_to_yaml.py
+
+name: amiga
+
+terminal_colors:
+  background: "#ffffff"
+  foreground: "#000000"
+  cursor: "#000000"
+  cursorAccent: "#ffffff"
+  selectionBackground: "#0055aa"
+  selectionForeground: "#ffffff"
+  black: "#000000"
+  red: "#aa0000"
+  green: "#00aa00"
+  yellow: "#aa5500"
+  blue: "#0055aa"
+  magenta: "#aa00aa"
+  cyan: "#00aaaa"
+  white: "#aaaaaa"
+  brightBlack: "#555555"
+  brightRed: "#ff0000"
+  brightGreen: "#00ff00"
+  brightYellow: "#ffff00"
+  brightBlue: "#0055ff"
+  brightMagenta: "#ff00ff"
+  brightCyan: "#00ffff"
+  brightWhite: "#ffffff"
+
+font_family: "JetBrains Mono, Cascadia Code, Consolas, Menlo, monospace"
+font_size: 14
+
+# UI chrome colors
+background_color: "#aaaaaa"
+foreground_color: "#000000"
+border_color: "#000000"
+accent_color: "#000000"
+
+overlay_background: "rgba(170, 170, 170, 0.95)"
+overlay_text_color: "#000000"

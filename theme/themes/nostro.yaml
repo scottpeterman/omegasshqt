@@ -1,0 +1,39 @@
+# Converted from nostro.json by tools/theme_json_to_yaml.py
+
+name: nostro
+
+terminal_colors:
+  background: "#000000"
+  foreground: "#33ff33"
+  cursor: "#33ff33"
+  cursorAccent: "#000000"
+  selectionBackground: "#116611"
+  selectionForeground: "#33ff33"
+  black: "#000000"
+  red: "#bb0000"
+  green: "#33ff33"
+  yellow: "#cccc00"
+  blue: "#0000cc"
+  magenta: "#cc00cc"
+  cyan: "#00cccc"
+  white: "#cccccc"
+  brightBlack: "#555555"
+  brightRed: "#ff3333"
+  brightGreen: "#66ff66"
+  brightYellow: "#ffff66"
+  brightBlue: "#3333ff"
+  brightMagenta: "#ff33ff"
+  brightCyan: "#33ffff"
+  brightWhite: "#ffffff"
+
+font_family: "JetBrains Mono, Cascadia Code, Consolas, Menlo, monospace"
+font_size: 14
+
+# UI chrome colors
+background_color: "#0d0d0d"
+foreground_color: "#33ff33"
+border_color: "#116611"
+accent_color: "#116611"
+
+overlay_background: "rgba(13, 13, 13, 0.95)"
+overlay_text_color: "#33ff33"

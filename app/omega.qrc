@@ -1,0 +1,19 @@
+<!-- app/omega.qrc
+
+     Images compiled INTO the binary rather than looked up on disk.
+
+     The themes are found at runtime because they are data somebody may want to
+     add to; these two are not. Making them resources means the About dialog and
+     the window icon work identically in a checkout, in a macOS .app and in
+     whatever a Linux package turns out to be, with no fifth entry in
+     findThemeDir's search order and no way for a packaging mistake to produce a
+     dialog with a missing image in it.
+
+     Sized for their use, not shipped at source resolution. See art/make-icons.py.
+-->
+<RCC>
+  <qresource prefix="/omega">
+    <file alias="banner.png">../art/omega-banner-about.png</file>
+    <file alias="icon.png">../art/omega-icon-256.png</file>
+  </qresource>
+</RCC>

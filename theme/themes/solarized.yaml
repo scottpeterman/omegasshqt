@@ -1,0 +1,39 @@
+# Converted from solarized.json by tools/theme_json_to_yaml.py
+
+name: solarized
+
+terminal_colors:
+  background: "#002b36"
+  foreground: "#93a1a1"
+  cursor: "#93a1a1"
+  cursorAccent: "#002b36"
+  selectionBackground: "rgba(147, 161, 161, 0.3)"
+  selectionForeground: "#93a1a1"
+  black: "#073642"
+  red: "#dc322f"
+  green: "#859900"
+  yellow: "#b58900"
+  blue: "#268bd2"
+  magenta: "#d33682"
+  cyan: "#2aa198"
+  white: "#eee8d5"
+  brightBlack: "#586e75"
+  brightRed: "#cb4b16"
+  brightGreen: "#586e75"
+  brightYellow: "#657b83"
+  brightBlue: "#839496"
+  brightMagenta: "#6c71c4"
+  brightCyan: "#93a1a1"
+  brightWhite: "#fdf6e3"
+
+font_family: "JetBrains Mono, Cascadia Code, Consolas, Menlo, monospace"
+font_size: 14
+
+# UI chrome colors
+background_color: "#002b36"
+foreground_color: "#93a1a1"
+border_color: "#268bd2"
+accent_color: "#268bd2"
+
+overlay_background: "rgba(0, 43, 54, 0.95)"
+overlay_text_color: "#93a1a1"

@@ -1,0 +1,39 @@
+# Converted from cyberish.json by tools/theme_json_to_yaml.py
+
+name: cyberish
+
+terminal_colors:
+  background: "#000000"
+  foreground: "#00ffb0"
+  cursor: "#00ffb0"
+  cursorAccent: "#000000"
+  selectionBackground: "#00ffb0"
+  selectionForeground: "#000000"
+  black: "#000000"
+  red: "#00cc88"
+  green: "#00ffaa"
+  yellow: "#00ffb0"
+  blue: "#00cc88"
+  magenta: "#00cc88"
+  cyan: "#00ffaa"
+  white: "#00ffb0"
+  brightBlack: "#009977"
+  brightRed: "#00ffe0"
+  brightGreen: "#00ffcc"
+  brightYellow: "#00ffe0"
+  brightBlue: "#00ffb0"
+  brightMagenta: "#00ffb0"
+  brightCyan: "#00ffcc"
+  brightWhite: "#00ffe0"
+
+font_family: "JetBrains Mono, Cascadia Code, Consolas, Menlo, monospace"
+font_size: 14
+
+# UI chrome colors
+background_color: "#000000"
+foreground_color: "#00b97e"
+border_color: "#aa0000"
+accent_color: "#00ffb0"
+
+overlay_background: "rgba(0, 0, 0, 0.95)"
+overlay_text_color: "#00b97e"

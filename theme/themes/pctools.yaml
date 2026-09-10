@@ -1,0 +1,39 @@
+# Converted from pctools.json by tools/theme_json_to_yaml.py
+
+name: pctools
+
+terminal_colors:
+  background: "#000080"
+  foreground: "#ffffff"
+  cursor: "#00ff00"
+  cursorAccent: "#000000"
+  selectionBackground: "#00aa00"
+  selectionForeground: "#000000"
+  black: "#000000"
+  red: "#aa0000"
+  green: "#00aa00"
+  yellow: "#ffff00"
+  blue: "#0000aa"
+  magenta: "#aa00aa"
+  cyan: "#00aaaa"
+  white: "#aaaaaa"
+  brightBlack: "#555555"
+  brightRed: "#ff5555"
+  brightGreen: "#55ff55"
+  brightYellow: "#ffff55"
+  brightBlue: "#5555ff"
+  brightMagenta: "#ff55ff"
+  brightCyan: "#55ffff"
+  brightWhite: "#ffffff"
+
+font_family: "JetBrains Mono, Cascadia Code, Consolas, Menlo, monospace"
+font_size: 14
+
+# UI chrome colors
+background_color: "#000080"
+foreground_color: "#ffffff"
+border_color: "#ffffff"
+accent_color: "#00aa00"
+
+overlay_background: "rgba(0, 0, 128, 0.95)"
+overlay_text_color: "#ffffff"

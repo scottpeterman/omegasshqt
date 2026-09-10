@@ -1,0 +1,43 @@
+name: nord_hybrid
+
+# Nord Hybrid theme
+# Polar Night UI + softer Snow Storm terminal
+# Adjusted palette for better contrast on light background
+
+terminal_colors:
+  # Softer terminal - nord4 instead of nord6
+  background: "#d8dee9"
+  foreground: "#2e3440"
+  cursor: "#2e3440"
+  cursorAccent: "#d8dee9"
+  selectionBackground: "#4c566a"
+  selectionForeground: "#eceff4"
+  # Darkened palette for light background contrast
+  black: "#2e3440"
+  red: "#a54242"
+  green: "#4e6a3d"
+  yellow: "#a07040"
+  blue: "#3b6186"
+  magenta: "#8a4b7c"
+  cyan: "#2b7694"
+  white: "#4c566a"
+  brightBlack: "#3b4252"
+  brightRed: "#bf616a"
+  brightGreen: "#5c8045"
+  brightYellow: "#d08770"
+  brightBlue: "#5e81ac"
+  brightMagenta: "#b48ead"
+  brightCyan: "#4e9a9a"
+  brightWhite: "#2e3440"
+
+font_family: "JetBrains Mono, Cascadia Code, Consolas, monospace"
+font_size: 14
+
+# Polar Night UI chrome (unchanged)
+background_color: "#2e3440"
+foreground_color: "#d8dee9"
+border_color: "#3b4252"
+accent_color: "#88c0d0"
+
+overlay_background: "rgba(46, 52, 64, 0.95)"
+overlay_text_color: "#eceff4"

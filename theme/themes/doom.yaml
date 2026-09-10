@@ -1,0 +1,39 @@
+# Converted from doom.json by tools/theme_json_to_yaml.py
+
+name: doom
+
+terminal_colors:
+  background: "#000000"
+  foreground: "#ff7700"
+  cursor: "#ff0000"
+  cursorAccent: "#000000"
+  selectionBackground: "#ff0000"
+  selectionForeground: "#ff7700"
+  black: "#000000"
+  red: "#aa0000"
+  green: "#aa5500"
+  yellow: "#ff7700"
+  blue: "#550000"
+  magenta: "#ff0000"
+  cyan: "#ffaa00"
+  white: "#ffcc00"
+  brightBlack: "#3a0000"
+  brightRed: "#ff3333"
+  brightGreen: "#dd7700"
+  brightYellow: "#ffaa55"
+  brightBlue: "#880000"
+  brightMagenta: "#ff5555"
+  brightCyan: "#ffcc77"
+  brightWhite: "#ffddaa"
+
+font_family: "JetBrains Mono, Cascadia Code, Consolas, Menlo, monospace"
+font_size: 14
+
+# UI chrome colors
+background_color: "#210000"
+foreground_color: "#fc8814"
+border_color: "#ba0707"
+accent_color: "#880000"
+
+overlay_background: "rgba(33, 0, 0, 0.95)"
+overlay_text_color: "#fc8814"

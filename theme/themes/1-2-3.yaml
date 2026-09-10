@@ -1,0 +1,39 @@
+# Converted from 1-2-3.json by tools/theme_json_to_yaml.py
+
+name: 1-2-3
+
+terminal_colors:
+  background: "#000000"
+  foreground: "#ffffff"
+  cursor: "#ffffff"
+  cursorAccent: "#000000"
+  selectionBackground: "#000080"
+  selectionForeground: "#ffffff"
+  black: "#000000"
+  red: "#aa0000"
+  green: "#00aa00"
+  yellow: "#aaaa00"
+  blue: "#000080"
+  magenta: "#aa00aa"
+  cyan: "#00ffff"
+  white: "#aaaaaa"
+  brightBlack: "#555555"
+  brightRed: "#ff5555"
+  brightGreen: "#55ff55"
+  brightYellow: "#ffff55"
+  brightBlue: "#5555ff"
+  brightMagenta: "#ff55ff"
+  brightCyan: "#55ffff"
+  brightWhite: "#ffffff"
+
+font_family: "JetBrains Mono, Cascadia Code, Consolas, Menlo, monospace"
+font_size: 14
+
+# UI chrome colors
+background_color: "#000000"
+foreground_color: "#ffffff"
+border_color: "#ffffff"
+accent_color: "#000080"
+
+overlay_background: "rgba(0, 0, 0, 0.95)"
+overlay_text_color: "#ffffff"

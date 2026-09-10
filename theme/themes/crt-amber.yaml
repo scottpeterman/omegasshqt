@@ -1,0 +1,39 @@
+# Converted from crt-amber.json by tools/theme_json_to_yaml.py
+
+name: crt-amber
+
+terminal_colors:
+  background: "#000000"
+  foreground: "#ffb000"
+  cursor: "#ffb000"
+  cursorAccent: "#000000"
+  selectionBackground: "#ffb000"
+  selectionForeground: "#000000"
+  black: "#000000"
+  red: "#cc8800"
+  green: "#ffaa00"
+  yellow: "#ffb000"
+  blue: "#cc8800"
+  magenta: "#cc8800"
+  cyan: "#ffaa00"
+  white: "#ffb000"
+  brightBlack: "#997700"
+  brightRed: "#ffe000"
+  brightGreen: "#ffcc00"
+  brightYellow: "#ffe000"
+  brightBlue: "#ffb000"
+  brightMagenta: "#ffb000"
+  brightCyan: "#ffcc00"
+  brightWhite: "#ffe000"
+
+font_family: "JetBrains Mono, Cascadia Code, Consolas, Menlo, monospace"
+font_size: 14
+
+# UI chrome colors
+background_color: "#000000"
+foreground_color: "#ffb000"
+border_color: "#ffb000"
+accent_color: "#ffb000"
+
+overlay_background: "rgba(0, 0, 0, 0.95)"
+overlay_text_color: "#ffb000"

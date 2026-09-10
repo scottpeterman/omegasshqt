@@ -1,0 +1,39 @@
+# Converted from cyber-blue.json by tools/theme_json_to_yaml.py
+
+name: cyber-blue
+
+terminal_colors:
+  background: "#000033"
+  foreground: "#ffffff"
+  cursor: "#00aaff"
+  cursorAccent: "#000033"
+  selectionBackground: "#0080ff"
+  selectionForeground: "#ffffff"
+  black: "#000000"
+  red: "#ff5555"
+  green: "#55ff55"
+  yellow: "#ffff55"
+  blue: "#0080ff"
+  magenta: "#ff55ff"
+  cyan: "#55ffff"
+  white: "#aaaaaa"
+  brightBlack: "#555555"
+  brightRed: "#ff5555"
+  brightGreen: "#55ff55"
+  brightYellow: "#ffff55"
+  brightBlue: "#55aaff"
+  brightMagenta: "#ff55ff"
+  brightCyan: "#55ffff"
+  brightWhite: "#ffffff"
+
+font_family: "JetBrains Mono, Cascadia Code, Consolas, Menlo, monospace"
+font_size: 14
+
+# UI chrome colors
+background_color: "#000033"
+foreground_color: "#ffffff"
+border_color: "#ffffff"
+accent_color: "#0080ff"
+
+overlay_background: "rgba(0, 0, 51, 0.95)"
+overlay_text_color: "#ffffff"

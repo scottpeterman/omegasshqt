@@ -1,0 +1,39 @@
+# Converted from ice.json by tools/theme_json_to_yaml.py
+
+name: ice
+
+terminal_colors:
+  background: "#e6e8ee"
+  foreground: "#000000"
+  cursor: "#000000"
+  cursorAccent: "#e6e8ee"
+  selectionBackground: "#a1a1a1"
+  selectionForeground: "#ffffff"
+  black: "#000000"
+  red: "#cc0000"
+  green: "#008800"
+  yellow: "#cc6600"
+  blue: "#0000cc"
+  magenta: "#cc00cc"
+  cyan: "#008888"
+  white: "#808080"
+  brightBlack: "#666666"
+  brightRed: "#ff0000"
+  brightGreen: "#00cc00"
+  brightYellow: "#ffcc00"
+  brightBlue: "#0000ff"
+  brightMagenta: "#ff00ff"
+  brightCyan: "#00cccc"
+  brightWhite: "#ffffff"
+
+font_family: "JetBrains Mono, Cascadia Code, Consolas, Menlo, monospace"
+font_size: 14
+
+# UI chrome colors
+background_color: "#b1b5c2"
+foreground_color: "#000000"
+border_color: "#666d7b"
+accent_color: "#666d7b"
+
+overlay_background: "rgba(177, 181, 194, 0.95)"
+overlay_text_color: "#000000"

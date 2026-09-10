@@ -1,0 +1,39 @@
+# Converted from cyberpunk.json by tools/theme_json_to_yaml.py
+
+name: cyberpunk
+
+terminal_colors:
+  background: "#000000"
+  foreground: "#22d3ee"
+  cursor: "#22d3ee"
+  cursorAccent: "#000000"
+  selectionBackground: "#22d3ee"
+  selectionForeground: "#000000"
+  black: "#000000"
+  red: "#dc2626"
+  green: "#0ea5e9"
+  yellow: "#22d3ee"
+  blue: "#0ea5e9"
+  magenta: "#22d3ee"
+  cyan: "#0ea5e9"
+  white: "#22d3ee"
+  brightBlack: "#0ea5e9"
+  brightRed: "#60a5fa"
+  brightGreen: "#38bdf8"
+  brightYellow: "#7dd3fc"
+  brightBlue: "#22d3ee"
+  brightMagenta: "#22d3ee"
+  brightCyan: "#38bdf8"
+  brightWhite: "#7dd3fc"
+
+font_family: "JetBrains Mono, Cascadia Code, Consolas, Menlo, monospace"
+font_size: 14
+
+# UI chrome colors
+background_color: "#000000"
+foreground_color: "#22d3ee"
+border_color: "#22d3ee"
+accent_color: "#22d3ee"
+
+overlay_background: "rgba(0, 0, 0, 0.95)"
+overlay_text_color: "#22d3ee"

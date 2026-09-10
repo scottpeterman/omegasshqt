@@ -1,0 +1,42 @@
+name: enterprise_light
+
+# Classic enterprise light theme
+# Light UI chrome with white terminal
+# Microsoft-inspired blue accent palette
+
+terminal_colors:
+  background: "#ffffff"
+  foreground: "#1e1e1e"
+  cursor: "#1e1e1e"
+  cursorAccent: "#ffffff"
+  selectionBackground: "#add6ff"
+  selectionForeground: "#1e1e1e"
+  # Light terminal palette (VS Code light-inspired)
+  black: "#1e1e1e"
+  red: "#c72e2e"
+  green: "#098658"
+  yellow: "#795e26"
+  blue: "#0451a5"
+  magenta: "#a626a4"
+  cyan: "#0598bc"
+  white: "#d4d4d4"
+  brightBlack: "#5a5a5a"
+  brightRed: "#e51400"
+  brightGreen: "#14a114"
+  brightYellow: "#b5a000"
+  brightBlue: "#0078d4"
+  brightMagenta: "#bc05bc"
+  brightCyan: "#00b7c3"
+  brightWhite: "#f8f8f8"
+
+font_family: "Cascadia Code, Consolas, JetBrains Mono, monospace"
+font_size: 14
+
+# UI chrome colors - classic light gray
+background_color: "#f3f3f3"
+foreground_color: "#1e1e1e"
+border_color: "#d1d1d1"
+accent_color: "#0078d4"
+
+overlay_background: "rgba(243, 243, 243, 0.95)"
+overlay_text_color: "#1e1e1e"

@@ -1,0 +1,39 @@
+# Converted from neon_city.json by tools/theme_json_to_yaml.py
+
+name: neon_city
+
+terminal_colors:
+  background: "#0f0f1a"
+  foreground: "#e8e8fa"
+  cursor: "#ff2cce"
+  cursorAccent: "#0f0f1a"
+  selectionBackground: "#e8e8fa"
+  selectionForeground: "#ffffff"
+  black: "#0f0f1a"
+  red: "#ff2cce"
+  green: "#00ccff"
+  yellow: "#ffcc00"
+  blue: "#3b1a3a"
+  magenta: "#c74cff"
+  cyan: "#00eaff"
+  white: "#e8e8fa"
+  brightBlack: "#414165"
+  brightRed: "#ff80df"
+  brightGreen: "#80e5ff"
+  brightYellow: "#ffdf80"
+  brightBlue: "#673a66"
+  brightMagenta: "#d89aff"
+  brightCyan: "#99f1ff"
+  brightWhite: "#ffffff"
+
+font_family: "JetBrains Mono, Cascadia Code, Consolas, Menlo, monospace"
+font_size: 14
+
+# UI chrome colors
+background_color: "#0f0f1a"
+foreground_color: "#c8c8e6"
+border_color: "#00ccff"
+accent_color: "#00ccff"
+
+overlay_background: "rgba(26, 26, 46, 0.95)"
+overlay_text_color: "#c8c8e6"

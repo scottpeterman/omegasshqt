@@ -1,0 +1,39 @@
+# Converted from crt-green.json by tools/theme_json_to_yaml.py
+
+name: crt-green
+
+terminal_colors:
+  background: "#000000"
+  foreground: "#00ff00"
+  cursor: "#00ff00"
+  cursorAccent: "#000000"
+  selectionBackground: "rgba(0, 255, 0, 0.3)"
+  selectionForeground: "#000000"
+  black: "#000000"
+  red: "#ff0000"
+  green: "#00ff00"
+  yellow: "#00ff00"
+  blue: "#00ff00"
+  magenta: "#00ff00"
+  cyan: "#00ff00"
+  white: "#00ff00"
+  brightBlack: "#005500"
+  brightRed: "#ff0000"
+  brightGreen: "#00ff00"
+  brightYellow: "#00ff00"
+  brightBlue: "#00ff00"
+  brightMagenta: "#00ff00"
+  brightCyan: "#00ff00"
+  brightWhite: "#00ff00"
+
+font_family: "JetBrains Mono, Cascadia Code, Consolas, Menlo, monospace"
+font_size: 14
+
+# UI chrome colors
+background_color: "#000000"
+foreground_color: "#00ff00"
+border_color: "#00ff00"
+accent_color: "#00ff00"
+
+overlay_background: "rgba(0, 0, 0, 0.95)"
+overlay_text_color: "#00ff00"

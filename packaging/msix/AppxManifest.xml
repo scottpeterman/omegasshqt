@@ -1,0 +1,83 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- packaging/msix/AppxManifest.xml
+
+     The MSIX manifest. scripts\bundle-windows-msix.bat copies this beside the
+     staged application and packs the result.
+
+     THE ONE THING THAT WILL BITE FIRST: Publisher below must match the SUBJECT
+     OF THE SIGNING CERTIFICATE exactly, character for character. Not the
+     display name, not close enough. Exactly. A mismatch fails at signtool
+     with "the app manifest publisher name does not match the signing
+     certificate subject", which at least says so, but the fix is to change one
+     of the two to agree with the other and it is easy to change the wrong one.
+
+     For a self-signed test certificate you choose the subject, so make the
+     certificate match this file. For a real code signing certificate the
+     subject is fixed by the issuer, so this file has to match the certificate.
+     For the Microsoft Store, the Store assigns Name and Publisher and you
+     replace both with what Partner Center gives you.
+
+     Version must be four parts, and the Store requires the last one to be 0.
+-->
+<Package
+  xmlns="http://schemas.microsoft.com/appx/manifest/foundation/windows10"
+  xmlns:uap="http://schemas.microsoft.com/appx/manifest/uap/windows10"
+  xmlns:rescap="http://schemas.microsoft.com/appx/manifest/foundation/windows10/restrictedcapabilities"
+  IgnorableNamespaces="uap rescap">
+
+  <Identity
+    Name="ScottPeterman.Omega"
+    Publisher="CN=Scott Peterman"
+    Version="0.1.0.0"
+    ProcessorArchitecture="x64" />
+
+  <Properties>
+    <DisplayName>Omega</DisplayName>
+    <PublisherDisplayName>Scott Peterman</PublisherDisplayName>
+    <Logo>Assets\StoreLogo.png</Logo>
+  </Properties>
+
+  <Dependencies>
+    <!-- 19041 is Windows 10 2004, the floor for current MSIX behaviour.
+         MaxVersionTested is not a limit. It states what was actually
+         run, and Windows uses it to decide which compatibility
+         behaviours to apply. -->
+    <TargetDeviceFamily
+      Name="Windows.Desktop"
+      MinVersion="10.0.19041.0"
+      MaxVersionTested="10.0.22621.0" />
+  </Dependencies>
+
+  <Resources>
+    <Resource Language="en-us" />
+  </Resources>
+
+  <Capabilities>
+    <!-- What makes this a desktop application rather than a sandboxed store
+         app: full access to the filesystem, the network and the user's
+         profile, as an ordinary Win32 process. It is a RESTRICTED capability,
+         so the Store asks for a justification at submission. For a packaged
+         Win32 desktop application that justification is routine, but it is
+         not automatic. Sideloading does not ask. -->
+    <rescap:Capability Name="runFullTrust" />
+  </Capabilities>
+
+  <Applications>
+    <Application
+      Id="Omega"
+      Executable="omega.exe"
+      EntryPoint="Windows.FullTrustApplication">
+      <uap:VisualElements
+        DisplayName="Omega"
+        Description="A terminal for network gear: SSH, telnet and serial in one window, with a session tree and an encrypted credential vault."
+        BackgroundColor="transparent"
+        Square150x150Logo="Assets\Square150x150Logo.png"
+        Square44x44Logo="Assets\Square44x44Logo.png">
+        <uap:DefaultTile
+          Wide310x150Logo="Assets\Wide310x150Logo.png"
+          Square71x71Logo="Assets\Square71x71Logo.png"
+          Square310x310Logo="Assets\Square310x310Logo.png" />
+      </uap:VisualElements>
+    </Application>
+  </Applications>
+</Package>

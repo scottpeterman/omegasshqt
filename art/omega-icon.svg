@@ -1,0 +1,60 @@
+<!-- art/omega-icon.svg
+     Omega's application mark: the omega alone, in the palette of the project
+     artwork (art/omega-banner.png).
+
+     WHY THIS EXISTS. The mark lifted out of the banner does not survive as
+     an icon. At 32px the world map, the rings and the grid are all still trying
+     to render, and the result is a blue smudge with a dark centre. This keeps
+     one shape and the colours and drops everything else.
+
+     NO SVG FILTERS. The glow is three stacked strokes of decreasing width and
+     increasing opacity rather than an feGaussianBlur. Filter support across
+     rasterizers is uneven (cairosvg in particular), and a glow that renders
+     on one machine and vanishes on another is worse than one built from
+     primitives that every renderer agrees about.
+
+     Palette sampled from the source artwork:
+       #000e1b  deep navy, the background
+       #0156a6  mid blue
+       #31c4ef  cyan, the mark
+       #c1faff  near-white highlight
+-->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
+  <defs>
+    <linearGradient id="plate" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0"   stop-color="#0a2036"/>
+      <stop offset="0.55" stop-color="#03121f"/>
+      <stop offset="1"   stop-color="#00060e"/>
+    </linearGradient>
+    <linearGradient id="mark" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0"   stop-color="#c1faff"/>
+      <stop offset="0.45" stop-color="#31c4ef"/>
+      <stop offset="1"   stop-color="#0d8fd0"/>
+    </linearGradient>
+  </defs>
+
+  <!-- The plate. rx is about 22% of the side, which is the proportion macOS
+       rounded-rect icons use. -->
+  <rect x="0" y="0" width="1024" height="1024" rx="228" ry="228" fill="url(#plate)"/>
+  <rect x="8" y="8" width="1008" height="1008" rx="222" ry="222"
+        fill="none" stroke="#0156a6" stroke-width="10" opacity="0.55"/>
+
+  <!-- The omega: one continuous stroked path (left foot, up into the ring,
+       around, and down into the right foot) so the joins are the stroke's
+       own rather than three shapes meeting. -->
+  <g fill="none" stroke-linecap="round" stroke-linejoin="round"
+     transform="translate(512 512) scale(0.94) translate(-512 -534)">
+    <path d="M 260 800 L 340 800 C 395 800 425 750 434 665
+             A 210 210 0 1 1 590 665
+             C 599 750 629 800 684 800 L 764 800"
+          stroke="#31c4ef" stroke-width="150" opacity="0.10"/>
+    <path d="M 260 800 L 340 800 C 395 800 425 750 434 665
+             A 210 210 0 1 1 590 665
+             C 599 750 629 800 684 800 L 764 800"
+          stroke="#31c4ef" stroke-width="112" opacity="0.16"/>
+    <path d="M 260 800 L 340 800 C 395 800 425 750 434 665
+             A 210 210 0 1 1 590 665
+             C 599 750 629 800 684 800 L 764 800"
+          stroke="url(#mark)" stroke-width="74"/>
+  </g>
+</svg>

@@ -1,0 +1,11 @@
+[Desktop Entry]
+Type=Application
+Name=Omega
+GenericName=Terminal for network gear
+Comment=SSH, telnet and serial in one window, with a session tree and an encrypted credential vault
+Exec=omega %U
+Icon=omega
+Terminal=false
+Categories=Network;System;TerminalEmulator;
+Keywords=ssh;telnet;serial;console;network;router;switch;
+StartupWMClass=omega
