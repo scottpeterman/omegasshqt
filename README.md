@@ -375,6 +375,5 @@ of the above.
 
 
 ## License
-None - All Rights Reserved
- 
+GPLv3 
 
