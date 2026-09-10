@@ -6,11 +6,13 @@ underneath, C ABI in the middle, Qt on top.
 ![Omega — Graphic](screenshots/omega.png)
 
 
+### see releases: 
+
 | | |
 |---|---|
-| macOS (Apple Silicon) | `Omega-0.1.0-arm64.zip` |
+| macOS (Apple Silicon) | `Omega-mac-0.1.0-arm64.zip` |
 | Windows (x64) | `omega-windows-x64.zip` |
-| Linux (x86-64) | `Omega-0.1.0-x86_64.AppImage` |
+| Linux (x86-64) | `omega-0.1.0-linux-x86_64.AppImage` |
 
 **None of these are signed with a certificate anybody's operating system
 trusts.** They are ad-hoc signed on macOS and unsigned on Windows, because a
