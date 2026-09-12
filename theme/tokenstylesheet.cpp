@@ -322,7 +322,8 @@ QTabBar::tab:selected { background: {bg.base}; color: {ink};
    Leaving the subcontrol unstyled lets the style draw its own indicator. */
 QTabBar::close-button:hover { background: {bg.selected}; border-radius: 4px; }
 
-/* ---- chrome furniture ------------------------------------------------- */
+)QSS"
+    R"QSS(/* ---- chrome furniture ------------------------------------------------- */
 QStatusBar { background: {bg.raised}; color: {ink.muted};
     border-top: 1px solid {line}; }
 QStatusBar::item { border: none; }
