@@ -8,7 +8,7 @@
 # alternative if that trade stops being worth it.
 
 cmake_minimum_required(VERSION 3.19)
-project(omegassh VERSION 0.1.0 LANGUAGES C CXX)
+project(omegassh VERSION 0.1.1 LANGUAGES C CXX)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -19,6 +19,8 @@ option(OMEGASSH_BUILD_EXAMPLES "Build the C and Qt examples" ON)
 option(OMEGASSH_BUILD_SESSIONS "Build the session store" ON)
 option(OMEGASSH_BUILD_THEME "Build the theme system" ON)
 option(OMEGASSH_BUILD_APP "Build the Omega shell application" ON)
+option(OMEGASSH_RELEASE
+    "Release build: require anytermqt to be exactly OMEGASSH_ANYTERMQT_REF, clean" OFF)
 
 find_program(GO_EXECUTABLE go REQUIRED)
 
@@ -224,6 +226,13 @@ endif()
 set(OMEGASSH_ANYTERMQT_DIR "" CACHE PATH
     "Path to an anytermqt checkout, for the terminal widget")
 
+# The anytermqt this version of Omega is released against. Bump it together
+# with project(VERSION) whenever a release picks up widget changes. Day-to-day
+# builds against a newer checkout only report the difference; a release build
+# (-DOMEGASSH_RELEASE=ON) refuses anything but this exact, clean commit, so the
+# binaries on a release page always match a tag in both repos.
+set(OMEGASSH_ANYTERMQT_REF "v0.1.1")
+
 set(OMEGASSH_HAVE_ANYTERMQT OFF)
 if(OMEGASSH_ANYTERMQT_DIR AND OMEGASSH_BUILD_QT)
     if(NOT EXISTS "${OMEGASSH_ANYTERMQT_DIR}/qtpyte/CMakeLists.txt")
@@ -268,6 +277,53 @@ if(OMEGASSH_ANYTERMQT_DIR AND OMEGASSH_BUILD_QT)
 
     set(OMEGASSH_HAVE_ANYTERMQT ON)
     message(STATUS "omegassh: anytermqt at ${OMEGASSH_ANYTERMQT_DIR}")
+
+    # --- anytermqt pin check ----------------------------------------------
+    find_package(Git QUIET)
+    if(GIT_FOUND AND EXISTS "${OMEGASSH_ANYTERMQT_DIR}/.git")
+        execute_process(
+            COMMAND "${GIT_EXECUTABLE}" -C "${OMEGASSH_ANYTERMQT_DIR}"
+                    describe --tags --always --dirty
+            OUTPUT_VARIABLE _atq_describe
+            OUTPUT_STRIP_TRAILING_WHITESPACE ERROR_QUIET)
+        execute_process(
+            COMMAND "${GIT_EXECUTABLE}" -C "${OMEGASSH_ANYTERMQT_DIR}"
+                    rev-parse HEAD
+            OUTPUT_VARIABLE _atq_head
+            OUTPUT_STRIP_TRAILING_WHITESPACE ERROR_QUIET)
+        execute_process(
+            COMMAND "${GIT_EXECUTABLE}" -C "${OMEGASSH_ANYTERMQT_DIR}"
+                    rev-parse --verify --quiet "${OMEGASSH_ANYTERMQT_REF}^{commit}"
+            OUTPUT_VARIABLE _atq_pinned
+            OUTPUT_STRIP_TRAILING_WHITESPACE ERROR_QUIET)
+
+        set(_atq_ok TRUE)
+        if(NOT _atq_pinned OR NOT _atq_head STREQUAL _atq_pinned)
+            set(_atq_ok FALSE)
+        endif()
+        if(_atq_describe MATCHES "-dirty$")
+            set(_atq_ok FALSE)
+        endif()
+
+        if(_atq_ok)
+            message(STATUS
+                "omegassh: anytermqt ${_atq_describe} (pinned ${OMEGASSH_ANYTERMQT_REF})")
+        elseif(OMEGASSH_RELEASE)
+            message(FATAL_ERROR
+                "OMEGASSH_RELEASE: anytermqt checkout is ${_atq_describe}, "
+                "release requires clean ${OMEGASSH_ANYTERMQT_REF}. "
+                "Check it out (git -C ${OMEGASSH_ANYTERMQT_DIR} checkout "
+                "${OMEGASSH_ANYTERMQT_REF}) or bump OMEGASSH_ANYTERMQT_REF.")
+        else()
+            message(STATUS
+                "omegassh: anytermqt ${_atq_describe} "
+                "(differs from pinned ${OMEGASSH_ANYTERMQT_REF})")
+        endif()
+    elseif(OMEGASSH_RELEASE)
+        message(FATAL_ERROR
+            "OMEGASSH_RELEASE: cannot verify anytermqt version "
+            "(git not found or ${OMEGASSH_ANYTERMQT_DIR} is not a git checkout)")
+    endif()
 endif()
 
 # The shell: settings, the main window, the terminal tab and the application.

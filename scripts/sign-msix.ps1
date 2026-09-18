@@ -11,10 +11,10 @@
   Must be run from an elevated prompt (writing to LocalMachine\TrustedPeople).
 
   Usage:
-    powershell -NoProfile -ExecutionPolicy Bypass -File scripts\sign-msix.ps1 dist\Omega-0.1.0-x64.msix
+    powershell -NoProfile -ExecutionPolicy Bypass -File scripts\sign-msix.ps1 dist\Omega-0.1.1-x64.msix
 #>
 param(
-    [string]$Package = "dist\Omega-0.1.0-x64.msix",
+    [string]$Package = "dist\Omega-0.1.1-x64.msix",
     [string]$PfxPath = "build-win\omega-dev.pfx",
     [string]$PfxPassword = "omega-dev"
 )
