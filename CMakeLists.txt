@@ -8,7 +8,7 @@
 # alternative if that trade stops being worth it.
 
 cmake_minimum_required(VERSION 3.19)
-project(omegassh VERSION 0.1.1 LANGUAGES C CXX)
+project(omegassh VERSION 0.1.2 LANGUAGES C CXX)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
