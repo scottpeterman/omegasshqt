@@ -6,6 +6,13 @@ REM
 REM   scripts\bundle-windows-msix.bat
 REM   scripts\bundle-windows-msix.bat --sign-self
 REM   scripts\bundle-windows-msix.bat --cert mycert.pfx --password ****
+REM   scripts\bundle-windows-msix.bat --version 0.1.2
+REM
+REM THE VERSION COMES FROM THE MANIFEST. --version stamps the staged copy's
+REM <Identity Version> (and the .msix file name) without touching
+REM packaging\msix\AppxManifest.xml; leave it off and the manifest's own
+REM Version is used for both. Either way the file name and the version the
+REM Store sees are the same number.
 REM
 REM RUN bundle-windows.bat FIRST. This one packages dist\omega and does not
 REM build anything, deliberately: the MSIX is a wrapper around exactly the
@@ -61,6 +68,7 @@ set "SIGNMODE=none"
 set "CERTFILE="
 set "CERTPASS="
 set "SUBJECT=CN=Scott Peterman"
+set "VERSION="
 
 :parse
 if "%~1"=="" goto parsed
@@ -76,6 +84,10 @@ if /i "%~1"=="--password" (
 if /i "%~1"=="--subject" (
     if "%~2"=="" (echo error: --subject needs a value 1>&2 & goto fail)
     set "SUBJECT=%~2" & shift & shift & goto parse
+)
+if /i "%~1"=="--version" (
+    if "%~2"=="" (echo error: --version needs a value, e.g. 0.1.2 1>&2 & goto fail)
+    set "VERSION=%~2" & shift & shift & goto parse
 )
 if /i "%~1"=="--help" goto usage
 if /i "%~1"=="-h" goto usage
@@ -183,9 +195,36 @@ if errorlevel 1 goto fail
 copy /y "%MANIFEST%" "%MSIXDIR%\AppxManifest.xml" >nul
 if errorlevel 1 goto fail
 
+REM --- version ---------------------------------------------------------------
+REM
+REM MSIX wants four parts, and the Store requires the fourth to be 0. A three-
+REM part --version gets .0 appended. Only the STAGED manifest is rewritten, and
+REM only the Identity element's Version -- a text replace would also hit
+REM MinVersion/MaxVersionTested on TargetDeviceFamily.
+
+if not "%VERSION%"=="" (
+    set "V4=%VERSION%"
+    for /f "tokens=1-4 delims=." %%a in ("%VERSION%") do (
+        if "%%d"=="" (set "V4=%%a.%%b.%%c.0")
+        if "%%c"=="" (echo error: --version needs at least three parts, e.g. 0.1.2 1>&2 & goto fail)
+    )
+    echo ==^> stamping version !V4!
+    powershell -NoProfile -Command "$p = (Resolve-Path '%MSIXDIR%\AppxManifest.xml').Path; $x = New-Object xml; $x.PreserveWhitespace = $true; $x.Load($p); $x.Package.Identity.Version = '!V4!'; $x.Save($p)"
+    if errorlevel 1 goto fail
+)
+
+set "PKGVER="
+for /f "delims=" %%V in ('powershell -NoProfile -Command "$x = New-Object xml; $x.Load((Resolve-Path '%MSIXDIR%\AppxManifest.xml').Path); $x.Package.Identity.Version"') do set "PKGVER=%%V"
+if "%PKGVER%"=="" (
+    echo error: could not read Identity Version from the staged manifest 1>&2
+    goto fail
+)
+for /f "tokens=1-3 delims=." %%a in ("%PKGVER%") do set "SHORTVER=%%a.%%b.%%c"
+echo ==^> package version %PKGVER%
+
 REM --- pack ------------------------------------------------------------------
 
-set "PKG=dist\Omega-0.1.0-x64.msix"
+set "PKG=dist\Omega-%SHORTVER%-x64.msix"
 echo ==^> packing %PKG%
 if exist "%PKG%" del /q "%PKG%"
 "%SDKBIN%\makeappx.exe" pack /d "%MSIXDIR%" /p "%PKG%" /o
@@ -281,7 +320,7 @@ exit /b 0
 echo Wraps dist\omega into an MSIX. Run scripts\bundle-windows.bat first.
 echo.
 echo   scripts\bundle-windows-msix.bat [--sign-self ^| --cert ^<pfx^> [--password ^<pw^>] ^| --no-sign]
-echo                                   [--subject "CN=Your Name"]
+echo                                   [--subject "CN=Your Name"] [--version 0.1.2]
 popd
 exit /b 0
 

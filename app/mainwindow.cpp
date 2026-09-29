@@ -465,6 +465,14 @@ void MainWindow::buildMenus() {
         }
         AboutDialog(accent, this).exec();
     });
+
+    // Qt's own About box: the LGPL notice and the Qt version actually linked,
+    // which is what the licence asks the application to surface. Same entry
+    // omegamaps and omegacat carry.
+    QAction *aboutQtAction = help->addAction(tr("About &Qt"));
+    aboutQtAction->setMenuRole(QAction::AboutQtRole);
+    connect(aboutQtAction, &QAction::triggered, this,
+            [this] { QMessageBox::aboutQt(this, tr("About Qt")); });
 }
 
 void MainWindow::restoreGeometryFromSettings() {
