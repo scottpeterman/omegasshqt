@@ -137,12 +137,43 @@ otool -L "${APP}/Contents/MacOS/Omega" | awk '/QtCore/{print "    linked against
 
 say "verifying"
 BIN="${APP}/Contents/MacOS/Omega"
-STRAY="$(otool -L "${BIN}" | awk '/Qt/{print $1}' | grep -v '@executable_path' || true)"
+
+# Two styles of deployed bundle, both self-contained:
+#   older macdeployqt rewrites each Qt reference to @executable_path/../Frameworks
+#   newer (Qt 6.x online installs) leaves @rpath/QtX.framework and relies on an
+#   LC_RPATH of @executable_path/../Frameworks
+# What breaks on another Mac is a reference that resolves through an ABSOLUTE
+# path -- the build machine's Qt -- so that is what is removed and checked for.
+
+# Absolute rpaths are the build tree's Qt lib dir. Harmless on this machine and a
+# trap everywhere else, so drop them; codesign runs after this.
+while read -r rp; do
+    [[ -z "${rp}" || "${rp}" == @* ]] && continue
+    say "removing absolute rpath ${rp}"
+    install_name_tool -delete_rpath "${rp}" "${BIN}"
+done < <(otool -l "${BIN}" | awk '/cmd LC_RPATH/{getline; getline; print $2}')
+
+RPATHS="$(otool -l "${BIN}" | awk '/cmd LC_RPATH/{getline; getline; print $2}')"
+if ! grep -qx '@executable_path/../Frameworks' <<<"${RPATHS}"; then
+    say "adding rpath @executable_path/../Frameworks"
+    install_name_tool -add_rpath @executable_path/../Frameworks "${BIN}"
+fi
+
+STRAY=""
+while read -r ref; do
+    case "${ref}" in
+        @executable_path/*|@loader_path/*) ;;
+        @rpath/*)
+            [[ -e "${APP}/Contents/Frameworks/${ref#@rpath/}" ]] || STRAY+="${ref} (not in Contents/Frameworks)"$'\n'
+            ;;
+        *) STRAY+="${ref}"$'\n' ;;
+    esac
+done < <(otool -L "${BIN}" | awk '/Qt/{print $1}')
 if [[ -n "${STRAY}" ]]; then
-    echo "${STRAY}" >&2
+    printf '%s' "${STRAY}" >&2
     die "Qt libraries above still resolve outside the bundle"
 fi
-say "every Qt reference in the binary is @executable_path"
+say "every Qt reference resolves inside the bundle"
 
 [[ -d "${APP}/Contents/PlugIns/platforms" ]] \
     || die "no platform plugin in the bundle; it would not start on a clean Mac"
