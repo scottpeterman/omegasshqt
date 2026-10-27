@@ -215,6 +215,14 @@ the application, discards it.</p>
 deliberately have different names, so neither application opens the other's file
 and reports it corrupt.</p>
 
+<h3>~/.omega/themes/</h3>
+<p>The themes, as YAML. Omega copies its shipped set here on first run and
+loads from here, so a theme can be edited or a new one dropped in. On upgrade a
+shipped theme you have not changed is replaced with the new version; one you
+have edited is left alone. <code>.shipped.json</code> records which is which.
+Delete a shipped theme and it comes back on the next start; to change one,
+edit it instead.</p>
+
 <h3>~/.omega/logs/</h3>
 <p>Where session captures land when a log is asked for without a specific path.
 Captures are plain text with escape sequences stripped. Recording your own

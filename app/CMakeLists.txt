@@ -22,7 +22,9 @@ add_library(omega_settings STATIC
     settings.cpp
     settings.h
     tabclose.cpp
-    tabclose.h)
+    tabclose.h
+    themeseed.cpp
+    themeseed.h)
 
 target_include_directories(omega_settings PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/..")
 target_link_libraries(omega_settings PUBLIC Qt6::Core)
@@ -345,6 +347,15 @@ if(OMEGA_APP_BUILD_PROBE)
     # decides whether the login modal re-opens. Neither claim is checkable by
     # reading, and both fail quietly: logs in the wrong folder, or a password
     # box over a host key mismatch. No display and no network.
+    # ~/.omega/themes seeding: copy-if-missing, update-if-untouched, keep
+    # edits, and the Resources/themes lookup at both depths. Temp dirs only.
+    add_executable(themeseed_probe
+        "${CMAKE_CURRENT_SOURCE_DIR}/../tests/compat/themeseed_probe.cpp")
+    target_link_libraries(themeseed_probe PRIVATE omega::settings)
+    set_target_properties(themeseed_probe PROPERTIES
+        CXX_STANDARD 17
+        CXX_STANDARD_REQUIRED ON)
+
     add_executable(config_dir_probe
         "${CMAKE_CURRENT_SOURCE_DIR}/../tests/compat/config_dir_probe.cpp")
     target_link_libraries(config_dir_probe PRIVATE omega::shell)

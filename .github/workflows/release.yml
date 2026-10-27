@@ -1,0 +1,225 @@
+# .github/workflows/release.yml
+#
+# Builds the three packages with the same scripts used by hand:
+#
+#   Linux    scripts/bundle-appimage.sh      dist/Omega-<ver>-x86_64.AppImage
+#   Windows  scripts\bundle-windows.bat --zip dist\omega-windows-x64.zip
+#   macOS    scripts/bundle-mac.sh --dmg     dist/Omega-<ver>-arm64.dmg
+#
+# Each job then starts the packaged binary with --list-themes against an empty
+# home directory and fails unless the themes came from inside the package and
+# were seeded into ~/.omega/themes -- the check that would have caught the
+# Windows build shipping with only the built-in theme.
+#
+# Triggers:
+#   push of a tag vX.Y.Z  build all three, then publish a GitHub release.
+#                         The tag must equal project(VERSION) in CMakeLists.txt.
+#   workflow_dispatch     build all three, artifacts only, no release.
+#
+# anytermqt is checked out at OMEGASSH_ANYTERMQT_REF from CMakeLists.txt, so a
+# release is always built against the widget it is pinned to.
+
+name: release
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  # Same Qt as the hand builds (docs/WINDOWS.md). One number for all three.
+  QT_VERSION: "6.10.3"
+  GO_VERSION: "1.23"
+
+jobs:
+  meta:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.v.outputs.version }}
+      anytermqt_ref: ${{ steps.v.outputs.anytermqt_ref }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: v
+        shell: bash
+        run: |
+          set -euo pipefail
+          version="$(sed -n 's/^project(omegassh VERSION \([0-9.]*\).*/\1/p' CMakeLists.txt)"
+          ref="$(sed -n 's/^set(OMEGASSH_ANYTERMQT_REF "\(.*\)")/\1/p' CMakeLists.txt)"
+          [[ -n "$version" ]] || { echo "::error::no project(VERSION) in CMakeLists.txt"; exit 1; }
+          [[ -n "$ref" ]] || { echo "::error::no OMEGASSH_ANYTERMQT_REF in CMakeLists.txt"; exit 1; }
+          if [[ "${GITHUB_REF_TYPE}" == "tag" && "${GITHUB_REF_NAME}" != "v${version}" ]]; then
+            echo "::error::tag ${GITHUB_REF_NAME} does not match CMakeLists.txt version ${version}"
+            exit 1
+          fi
+          echo "version=${version}" >> "$GITHUB_OUTPUT"
+          echo "anytermqt_ref=${ref}" >> "$GITHUB_OUTPUT"
+          echo "omega ${version}, anytermqt ${ref}"
+
+  linux:
+    needs: meta
+    # Oldest supported runner: the AppImage carries Qt but takes glibc from the
+    # host, so building on the oldest base is what lets it run on the most.
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+        with:
+          repository: scottpeterman/anytermqt
+          ref: ${{ needs.meta.outputs.anytermqt_ref }}
+          path: anytermqt
+      - uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache-dependency-path: go.sum
+      - uses: jurplel/install-qt-action@v4
+        with:
+          version: ${{ env.QT_VERSION }}
+          cache: true
+      - name: System packages
+        run: sudo apt-get update && sudo apt-get install -y ninja-build libgl1-mesa-dev libegl1 libxkbcommon-x11-0 libxcb-cursor0 libxcb-icccm4 libxcb-image0 libxcb-keysyms1 libxcb-randr0 libxcb-render-util0 libxcb-shape0 libxcb-xinerama0 libxcb-xkb1 libfontconfig1 libdbus-1-3 xvfb
+      - name: Build AppImage
+        env:
+          QMAKE: ${{ env.QT_ROOT_DIR }}/bin/qmake
+          CMAKE_PREFIX_PATH: ${{ env.QT_ROOT_DIR }}
+        run: bash scripts/bundle-appimage.sh --anytermqt "$GITHUB_WORKSPACE/anytermqt"
+      - name: Smoke test (themes seed from inside the AppImage)
+        shell: bash
+        run: |
+          set -euo pipefail
+          img="dist/Omega-${{ needs.meta.outputs.version }}-x86_64.AppImage"
+          home="$(mktemp -d)"
+          out="$(HOME="$home" APPIMAGE_EXTRACT_AND_RUN=1 timeout 60 xvfb-run -a "$img" --list-themes 2>&1 || true)"
+          echo "$out" | grep -v '^[a-z0-9_-]*$'
+          grep -q 'usr/Resources/themes + ' <<<"$out" || { echo "::error::themes not loaded from inside the AppImage"; exit 1; }
+          n="$(ls "$home/.omega/themes"/*.yaml | wc -l)"
+          [[ "$n" -ge 10 ]] || { echo "::error::only $n themes seeded into ~/.omega/themes"; exit 1; }
+          echo "$n themes seeded"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: linux
+          path: dist/Omega-*.AppImage
+          if-no-files-found: error
+
+  windows:
+    needs: meta
+    runs-on: windows-2022
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+        with:
+          repository: scottpeterman/anytermqt
+          ref: ${{ needs.meta.outputs.anytermqt_ref }}
+          path: anytermqt
+      - uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache-dependency-path: go.sum
+      - uses: jurplel/install-qt-action@v4
+        with:
+          version: ${{ env.QT_VERSION }}
+          arch: win64_msvc2022_64
+          cache: true
+      # vcvars64: cl.exe on PATH and VCToolsRedistDir set, both of which
+      # bundle-windows.bat checks for.
+      - uses: ilammy/msvc-dev-cmd@v1
+        with:
+          arch: x64
+      - name: Toolchain
+        shell: cmd
+        run: |
+          where gcc || (echo ::error::no mingw gcc on PATH for cgo & exit /b 1)
+          gcc --version
+          go version
+          cl 2>&1 | findstr Version
+      - name: Build zip
+        shell: cmd
+        run: call scripts\bundle-windows.bat --anytermqt "%GITHUB_WORKSPACE%\anytermqt" --qt "%QT_ROOT_DIR%" --zip
+      - name: Smoke test (themes seed from inside the package)
+        shell: pwsh
+        run: |
+          # omega.exe is a GUI subsystem binary: its stderr only exists when
+          # redirected. QDir::homePath() on Windows comes from the process
+          # token, not USERPROFILE, so the seeded directory is read back out of
+          # what omega reports rather than redirected to a temp dir.
+          $p = Start-Process -FilePath "dist\omega\omega.exe" -ArgumentList "--list-themes" -RedirectStandardOutput "$env:RUNNER_TEMP\out.txt" -RedirectStandardError "$env:RUNNER_TEMP\err.txt" -NoNewWindow -Wait -PassThru
+          $err = Get-Content "$env:RUNNER_TEMP\err.txt" -Raw
+          Write-Host $err
+          if ($err -notmatch 'themes from (\S*Resources/themes) \+ (\S+)') { Write-Error "themes not loaded from inside the package"; exit 1 }
+          $userDir = $Matches[2]
+          $n = (Get-ChildItem (Join-Path $userDir '*.yaml')).Count
+          if ($n -lt 10) { Write-Error "only $n themes seeded into $userDir"; exit 1 }
+          Write-Host "$n themes seeded into $userDir"
+      - name: Name the zip
+        shell: pwsh
+        run: Move-Item dist\omega-windows-x64.zip "dist\Omega-${{ needs.meta.outputs.version }}-windows-x64.zip"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: windows
+          path: dist/Omega-*-windows-x64.zip
+          if-no-files-found: error
+
+  macos:
+    needs: meta
+    # Apple silicon. bundle-mac.sh builds arm64 only.
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+        with:
+          repository: scottpeterman/anytermqt
+          ref: ${{ needs.meta.outputs.anytermqt_ref }}
+          path: anytermqt
+      - uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache-dependency-path: go.sum
+      - uses: jurplel/install-qt-action@v4
+        with:
+          version: ${{ env.QT_VERSION }}
+          cache: true
+      - name: Build dmg
+        env:
+          CMAKE_PREFIX_PATH: ${{ env.QT_ROOT_DIR }}
+        run: bash scripts/bundle-mac.sh --anytermqt "$GITHUB_WORKSPACE/anytermqt" --dmg
+      - name: Smoke test (themes seed from inside the bundle)
+        shell: bash
+        run: |
+          set -euo pipefail
+          home="$(mktemp -d)"
+          out="$(HOME="$home" QT_QPA_PLATFORM=offscreen build-mac/app/Omega.app/Contents/MacOS/Omega --list-themes 2>&1 || true)"
+          # offscreen is not deployed into the bundle; fall back to cocoa.
+          if ! grep -q 'themes from' <<<"$out"; then
+            out="$(HOME="$home" build-mac/app/Omega.app/Contents/MacOS/Omega --list-themes 2>&1 || true)"
+          fi
+          echo "$out" | grep -v '^[a-z0-9_-]*$'
+          grep -q 'Contents/Resources/themes + ' <<<"$out" || { echo "::error::themes not loaded from inside the bundle"; exit 1; }
+          n="$(ls "$home/.omega/themes"/*.yaml | wc -l | tr -d ' ')"
+          [[ "$n" -ge 10 ]] || { echo "::error::only $n themes seeded into ~/.omega/themes"; exit 1; }
+          echo "$n themes seeded"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: macos
+          path: dist/Omega-*.dmg
+          if-no-files-found: error
+
+  release:
+    if: github.ref_type == 'tag'
+    needs: [meta, linux, windows, macos]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: out
+          merge-multiple: true
+      - name: Checksums
+        working-directory: out
+        run: sha256sum * > SHA256SUMS.txt && cat SHA256SUMS.txt
+      - name: Publish
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release create "${GITHUB_REF_NAME}" out/* --repo "${GITHUB_REPOSITORY}" --title "Omega ${{ needs.meta.outputs.version }}" --generate-notes

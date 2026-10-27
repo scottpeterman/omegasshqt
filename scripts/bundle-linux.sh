@@ -155,10 +155,13 @@ echo "    ${LIBS} libraries, ${THEMES} themes"
 # what it prints on the way up -- it names the theme directory when it finds
 # nothing there -- so a few seconds is all this needs, and exit 124 from being
 # killed is the SUCCESS case.
-CHECK="$(QT_QPA_PLATFORM=offscreen timeout 8 "${STAGE}/bin/omega" \
-             --config /tmp/omega-bundle-check.json 2>&1 || true)"
+# A throwaway HOME: omega seeds ~/.omega/themes on start, and a check run should
+# neither write into the real one nor pass because a previous install filled it.
+CHECK_HOME="$(mktemp -d)"
+CHECK="$(HOME="${CHECK_HOME}" QT_QPA_PLATFORM=offscreen timeout 8 "${STAGE}/bin/omega" --list-themes 2>&1 || true)"
+rm -rf "${CHECK_HOME}"
 
-if grep -q "no themes found" <<<"${CHECK}"; then
+if grep -q "no themes found" <<<"${CHECK}" || ! grep -q "themes from ${ROOT}/${STAGE}/Resources/themes" <<<"${CHECK}"; then
     echo "${CHECK}" >&2
     die "the staged tree did not find its own themes"
 fi

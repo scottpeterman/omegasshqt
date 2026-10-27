@@ -13,7 +13,8 @@
 // The flags exist for running against something other than the installed
 // layout: a checkout's theme/themes, a config.json that is not the real
 // ~/.omega/config.json, or an omega.json that is not the real one. Without
-// them it uses the shipped theme directory, the file both applications share,
+// them it uses the shipped themes (copied into ~/.omega/themes on first run
+// and on upgrade -- see app/themeseed.h), the file both applications share,
 // and Omega's own file beside it.
 
 #include <QApplication>
@@ -26,6 +27,7 @@
 #include "app/mainwindow.h"
 #include "app/spinarrowstyle.h"
 #include "app/settings.h"
+#include "app/themeseed.h"
 #include "theme/theme.h"
 
 #include <cstdio>
@@ -38,37 +40,26 @@ QString argValue(const QStringList &args, const QString &flag,
     return (at >= 0 && at + 1 < args.size()) ? args.at(at + 1) : fallback;
 }
 
-// Where the themes are, in the order worth trying:
+// Where the SHIPPED themes are, in the order worth trying:
 //
-//   --themes            an explicit answer, for a checkout or a test
-//   OMEGA_THEME_DIR     the environment, for the same reason
-//   ../Resources/themes beside the executable -- a macOS .app bundle, and any
-//                       other layout that ships its resources alongside
-//   the compiled path   where the build found them
-//   ./theme/themes      running from a source tree
+//   beside the executable  Resources/themes (Windows zip and MSIX: the exe is
+//                          at the package root) or ../Resources/themes (.app
+//                          bundle, AppImage usr/bin, portable Linux bin/)
+//   the compiled path      where the build found them
+//   ./theme/themes         running from a source tree
 //
-// THE BUNDLE PATH GOES BEFORE THE COMPILED ONE, and the order is the whole
+// THE BUNDLE PATHS GO BEFORE THE COMPILED ONE, and the order is the whole
 // point of it. The compiled path is an absolute path into the build tree, so
 // on the machine that built it a bundle with NO themes in it still finds them
 // and looks fine -- and the same bundle on any other machine falls through to
 // the one built-in fallback and opens as a plain window, with nothing on
-// screen saying why. Looking in the bundle first means the packaging is
-// exercised on the machine doing the packaging.
-//
-// Not guarded by Q_OS_MACOS: the same layout is what a portable Linux or
-// Windows tree would use, and a directory that is not there costs one stat.
-QString findThemeDir(const QStringList &args) {
-    const QString explicitDir = argValue(args, QStringLiteral("--themes"));
-    if (!explicitDir.isEmpty()) return explicitDir;
-
-    const QByteArray env = qgetenv("OMEGA_THEME_DIR");
-    if (!env.isEmpty()) return QString::fromLocal8Bit(env);
-
-    // Omega.app/Contents/MacOS/Omega -> Omega.app/Contents/Resources/themes
-    const QString beside = QDir::cleanPath(
-        QCoreApplication::applicationDirPath() +
-        QStringLiteral("/../Resources/themes"));
-    if (QFileInfo(beside).isDir()) return beside;
+// screen saying why. That is exactly what the Windows package did while only
+// ../Resources/themes was checked: the exe sits at the root there, the lookup
+// went one directory too high, and only the build machine saw themes.
+QString findShippedThemeDir() {
+    const QString bundled = omega::app::findBundledThemeDir(
+        QCoreApplication::applicationDirPath());
+    if (!bundled.isEmpty()) return bundled;
 
 #ifdef OMEGA_THEME_DIR_DEFAULT
     const QString compiled = QStringLiteral(OMEGA_THEME_DIR_DEFAULT);
@@ -76,6 +67,51 @@ QString findThemeDir(const QStringList &args) {
 #endif
 
     return QStringLiteral("theme/themes");
+}
+
+// Loads the themes and says where from. --themes and OMEGA_THEME_DIR are
+// taken as the whole answer and seed nothing, so a test run never writes into
+// ~/.omega. Otherwise the shipped set is copied into ~/.omega/themes (see
+// app/themeseed.h) and both are loaded, shipped first: the user directory
+// overlays it by theme name, and if the copy failed the shipped set is still
+// there underneath rather than the built-in fallback.
+//
+// Returns the number of distinct themes loaded; *from names the source(s).
+int loadThemes(omega::theme::ThemeEngine &themes, const QStringList &args,
+               QString *from) {
+    QString explicitDir = argValue(args, QStringLiteral("--themes"));
+    if (explicitDir.isEmpty()) {
+        explicitDir = QString::fromLocal8Bit(qgetenv("OMEGA_THEME_DIR"));
+    }
+    if (!explicitDir.isEmpty()) {
+        *from = explicitDir;
+        return themes.loadDirectory(explicitDir.toStdString());
+    }
+
+    const QString shipped = findShippedThemeDir();
+    const QString user = omega::app::defaultUserThemeDir();
+
+    if (omega::app::hasThemeFiles(shipped)) {
+        const omega::app::ThemeSeedResult seed =
+            omega::app::seedUserThemes(shipped, user);
+        for (const QString &e : seed.errors) {
+            std::fprintf(stderr, "omega: theme seed: %s\n", qPrintable(e));
+        }
+        if (seed.copied || seed.updated) {
+            std::fprintf(stderr,
+                         "omega: themes: %d copied, %d updated into %s "
+                         "(%d kept as edited)\n",
+                         seed.copied, seed.updated, qPrintable(user),
+                         seed.kept);
+        }
+        themes.loadDirectory(shipped.toStdString());
+    }
+    if (omega::app::hasThemeFiles(user)) {
+        themes.loadDirectory(user.toStdString());
+    }
+
+    *from = shipped + QStringLiteral(" + ") + user;
+    return static_cast<int>(themes.names().size());
 }
 
 // Every flag this binary understands, and whether it takes a value.
@@ -197,8 +233,8 @@ int main(int argc, char **argv) {
     }
 
     omega::theme::ThemeEngine themes;
-    const QString themeDir = findThemeDir(args);
-    const int loaded = themes.loadDirectory(themeDir.toStdString());
+    QString themeDir;
+    const int loaded = loadThemes(themes, args, &themeDir);
     for (const std::string &w : themes.warnings()) {
         std::fprintf(stderr, "omega: theme warning: %s\n", w.c_str());
     }

@@ -119,6 +119,7 @@ go test ./...                                    # Go: vault, sshcore, transport
 ./build/examples/c/vault_smoke /tmp/lab-vault.json      # the C boundary
 ./build/qt/vault_probe /tmp/probe-vault.json            # the C++ wrapper
 ./build/examples/c/credential_probe                     # credential refusals, pre-socket
+./build/app/themeseed_probe                             # ~/.omega/themes seed, temp dirs only
 QT_QPA_PLATFORM=offscreen \
   ./build/app/shell_probe theme/themes /tmp/probe-config.json 900 640 30 50 260
 ```
@@ -159,6 +160,37 @@ something worth keeping goes instead.
 **Xvfb plus xdotool** is only needed for behaviour that requires real input:
 drag-and-drop, a window manager delivering a close event, focus. Nothing so far
 has needed it; the session tree's drop handling will.
+
+## 6a. Packaging: the AppImage and the theme seed
+
+The Linux packaging runs here end to end. `linuxdeploy` downloads from
+github.com, which is on the allowlist. The scripts are not executable in git,
+so call them through `bash`:
+
+```bash
+apt-get install -y xvfb libxcb-cursor0
+bash scripts/bundle-linux.sh --anytermqt /absolute/path/to/anytermqt
+bash scripts/bundle-appimage.sh --anytermqt /absolute/path/to/anytermqt
+```
+
+Then the check CI runs, against a throwaway HOME so a stale `~/.omega/themes`
+cannot make a broken package look fine:
+
+```bash
+H=$(mktemp -d); HOME=$H APPIMAGE_EXTRACT_AND_RUN=1 xvfb-run -a dist/Omega-*-x86_64.AppImage --list-themes 2>&1 | tail -2; ls $H/.omega/themes | wc -l
+```
+
+Expect `... themes from <...>/usr/Resources/themes + <H>/.omega/themes` and 33.
+
+To reproduce the Windows layout (exe at the package root) on Linux, hide the
+build tree's themes so the compiled-in path cannot mask a miss:
+
+```bash
+S=/tmp/win-layout; rm -rf $S; mkdir -p $S/Resources; cp build/app/omega $S/; cp -r theme/themes $S/Resources/themes
+mv theme/themes theme/themes.hidden; H=$(mktemp -d); (cd /tmp && HOME=$H QT_QPA_PLATFORM=offscreen $S/omega --list-themes 2>&1 | tail -1); mv theme/themes.hidden theme/themes
+```
+
+`.github/workflows/release.yml` runs the same smoke test on all three runners.
 
 ## 7. What the sandbox cannot tell you
 

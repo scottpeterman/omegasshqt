@@ -47,3 +47,6 @@
 
 # OS
 .DS_Store
+# linuxdeploy tools fetched by scripts/bundle-appimage.sh, and its AppDir
+/.linuxdeploy/
+/AppDir/
