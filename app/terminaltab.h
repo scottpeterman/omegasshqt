@@ -367,6 +367,11 @@ private:
     // Sends the next chunk and re-arms, or finishes.
     void sendNextPasteChunk();
 
+    // Closes a bracketed paste that beginThrottledPaste() opened, if it
+    // opened one. Called on completion and on cancel alike: a start marker
+    // with no end leaves the application in paste mode.
+    void endBracketedPaste();
+
     // --- window size -------------------------------------------------------
     //
     // attach() wires the widget's resized() straight to the session, which
@@ -523,6 +528,9 @@ private:
     PasteQueue pasteQueue_;
     QTimer *pasteTimer_ = nullptr;
     int pasteBaud_ = 0;
+    // Whether the paced paste in flight was opened with ESC[200~. Taken once
+    // when it starts, so a mode change mid-paste cannot leave it unclosed.
+    bool pasteBracketed_ = false;
 
     bool wheelAltScreen_ = true;
 

@@ -8,7 +8,7 @@
 # alternative if that trade stops being worth it.
 
 cmake_minimum_required(VERSION 3.19)
-project(omegassh VERSION 0.1.3 LANGUAGES C CXX)
+project(omegassh VERSION 0.1.4 LANGUAGES C CXX)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -231,7 +231,7 @@ set(OMEGASSH_ANYTERMQT_DIR "" CACHE PATH
 # builds against a newer checkout only report the difference; a release build
 # (-DOMEGASSH_RELEASE=ON) refuses anything but this exact, clean commit, so the
 # binaries on a release page always match a tag in both repos.
-set(OMEGASSH_ANYTERMQT_REF "v0.1.1")
+set(OMEGASSH_ANYTERMQT_REF "v0.1.2")
 
 set(OMEGASSH_HAVE_ANYTERMQT OFF)
 if(OMEGASSH_ANYTERMQT_DIR AND OMEGASSH_BUILD_QT)

@@ -6,7 +6,8 @@
 //                            the focus chain
 //   terminal_probe capture   escape stripping survives a chunk boundary
 //   terminal_probe paste     rate-limited paste chunks on lines, caps long
-//                            ones, and delivers every byte in order
+//                            ones, delivers every byte in order, and wraps
+//                            the whole delivery when the far end set ?2004
 //   terminal_probe hostkey   first contact is recognised, a key mismatch is
 //                            not
 //   terminal_probe antiidle  the keystroke bytes, the config round trip, and
@@ -33,6 +34,8 @@
 
 #include <QApplication>
 #include <QByteArray>
+#include <QClipboard>
+#include <QElapsedTimer>
 #include <QEventLoop>
 #include <QKeyEvent>
 #include <QTimer>
@@ -217,6 +220,25 @@ void runPaste() {
     check("paste/byte-fidelity", out == mixed,
           "len=" + QByteArray::number(out.size()));
 
+    // A CRLF line whose \r lands exactly on the cap must not be split between
+    // the \r and the \n: each half becomes a CR on the wire, so the far end
+    // would see an extra Enter.
+    const QString crlf = QString(255, QLatin1Char('y')) + QStringLiteral("\r\n");
+    PasteQueue crq;
+    crq.load(crlf);
+    QStringList crChunks;
+    while (crq.hasNext()) {
+        crChunks << crq.next();
+    }
+    bool loneHalf = false;
+    for (const QString &c : crChunks) {
+        loneHalf = loneHalf || c.endsWith(QLatin1Char('\r')) ||
+                   c.startsWith(QLatin1Char('\n'));
+    }
+    check("paste/crlf-not-split",
+          !loneHalf && crChunks.join(QString()) == crlf,
+          "chunks=" + QByteArray::number(crChunks.size()));
+
     // Baud pacing: ten bits a character, so 9600 baud carries 960 characters
     // a second and 80 characters owe 83 ms. Eight bits would give 67 and
     // overrun a console slowly enough to look like something else.
@@ -232,6 +254,76 @@ void runPaste() {
     const double seconds = pasteDurationSeconds(9600, 9600);
     check("paste/duration-estimate", qAbs(seconds - 10.0) < 0.001,
           "s=" + QByteArray::number(seconds));
+}
+
+// A paced paste, as bytes on the wire. Drives TerminalTab::paste() with no
+// session behind it and taps the view's outbound signal, which is where a
+// session would read from.
+struct PacedPasteResult {
+    QByteArray wire;
+    bool finished = false;
+};
+
+PacedPasteResult pacedPaste(bool farEndBracketed, const QString &text,
+                            int baud, int cancelAfterMs) {
+    PacedPasteResult result;
+    TerminalTab tab;
+    tab.setMultilinePasteThreshold(0);  // no modal
+    tab.setPasteBaud(baud);
+
+    auto *view = tab.findChild<TerminalView *>();
+    if (view == nullptr) {
+        return result;
+    }
+    if (farEndBracketed) {
+        view->feed(QByteArrayLiteral("\033[?2004h"));
+    }
+    QObject::connect(view, &qtpyte::TerminalWidget::dataReady,
+                     [&result](const QByteArray &d) { result.wire += d; });
+
+    QApplication::clipboard()->setText(text);
+    tab.paste();
+
+    QElapsedTimer clock;
+    clock.start();
+    while (tab.isPasting() && clock.elapsed() < 5000) {
+        if (cancelAfterMs >= 0 && clock.elapsed() >= cancelAfterMs) {
+            tab.cancelPaste();
+            break;
+        }
+        QApplication::processEvents(QEventLoop::AllEvents, 10);
+    }
+    result.finished = !tab.isPasting();
+    return result;
+}
+
+void runPasteBracket() {
+    const QString block = QStringLiteral("if x:\n    y = 1\n    z = 2\n");
+    const QByteArray body = QByteArrayLiteral("if x:\r    y = 1\r    z = 2\r");
+
+    // The far end asked for ?2004: one pair of markers around the whole
+    // delivery, not one per line and not none.
+    const PacedPasteResult on = pacedPaste(true, block, 115200, -1);
+    check("paste/paced-bracketed",
+          on.finished &&
+              on.wire == QByteArrayLiteral("\033[200~") + body +
+                             QByteArrayLiteral("\033[201~"),
+          "wire=" + on.wire.toPercentEncoding());
+
+    // It did not: the bytes are exactly what typing them would send.
+    const PacedPasteResult off = pacedPaste(false, block, 115200, -1);
+    check("paste/paced-unbracketed", off.finished && off.wire == body,
+          "wire=" + off.wire.toPercentEncoding());
+
+    // Cancelled part way: the end marker still goes out, or the application
+    // is left in paste mode. 300 baud is 30 chars/s, so the first line is
+    // still owed its gap when the cancel lands.
+    const PacedPasteResult cut = pacedPaste(true, block, 300, 50);
+    check("paste/paced-cancel-closes",
+          cut.finished && cut.wire.startsWith("\033[200~") &&
+              cut.wire.endsWith("\033[201~") && cut.wire.count("\033[201~") == 1 &&
+              cut.wire.size() < (body.size() + 12),
+          "wire=" + cut.wire.toPercentEncoding());
 }
 
 void runHostKey() {
@@ -641,6 +733,7 @@ int main(int argc, char **argv) {
     }
     if (which.isEmpty() || which == QLatin1String("paste")) {
         runPaste();
+        runPasteBracket();
     }
     if (which.isEmpty() || which == QLatin1String("hostkey")) {
         runHostKey();

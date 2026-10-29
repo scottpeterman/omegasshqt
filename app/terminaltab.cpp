@@ -512,6 +512,7 @@ void TerminalTab::cancelPaste() {
     const int total = pasteQueue_.total();
     pasteTimer_->stop();
     pasteQueue_.clear();
+    endBracketedPaste();
     emit statusChanged(tr("Paste cancelled after %1 of %2 lines").arg(sent).arg(total));
 }
 
@@ -597,6 +598,15 @@ void TerminalTab::beginThrottledPaste(const QString &text) {
     cancelPaste();
 
     pasteQueue_.load(text);
+
+    // The far end asked for bracketed paste (vim, bash, zsh with ?2004 set):
+    // open the bracket once and close it after the last line. Without the
+    // markers a paced paste arrives as typing, and vim auto-indents every
+    // line on top of the indentation already in it.
+    pasteBracketed_ = terminal_->bracketedPaste();
+    if (pasteBracketed_) {
+        terminal_->send(QStringLiteral("\033[200~"));
+    }
     sendNextPasteChunk();
 }
 
@@ -607,13 +617,12 @@ void TerminalTab::sendNextPasteChunk() {
 
     const QString chunk = pasteQueue_.next();
 
-    // send(), not paste(): this is emulating typing, one line at a time, and
-    // send() applies the same newline conversion without the bracketed-paste
-    // markers. Those markers wrap a paste, and there is no honest way to wrap
-    // one that is being delivered in pieces -- the far end would see the
-    // start marker, then a gap, then more input. Nothing that needs a console
-    // cable asks for bracketed paste anyway; anything that does is on SSH,
-    // where the delay is 0 and this path is not taken.
+    // send(), not paste(): paste() would wrap every line in its own pair of
+    // markers. send() applies the same newline conversion and nothing else;
+    // the markers, when the far end wants them, wrap the whole delivery and
+    // are sent by beginThrottledPaste() and endBracketedPaste(). A gap
+    // between them is fine -- vim, readline and zsh parse the markers out of
+    // a stream and stay in paste mode until the end marker arrives.
     terminal_->send(chunk);
 
     if (pasteQueue_.hasNext()) {
@@ -628,8 +637,17 @@ void TerminalTab::sendNextPasteChunk() {
         return;
     }
 
+    endBracketedPaste();
     emit statusChanged(tr("Pasted %1 lines").arg(pasteQueue_.total()));
     pasteQueue_.clear();
+}
+
+void TerminalTab::endBracketedPaste() {
+    if (!pasteBracketed_) {
+        return;
+    }
+    pasteBracketed_ = false;
+    terminal_->send(QStringLiteral("\033[201~"));
 }
 
 void TerminalTab::copyPaste() {

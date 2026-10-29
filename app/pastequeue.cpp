@@ -47,8 +47,15 @@ void PasteQueue::load(const QString &text) {
         // Long lines go out in pieces. The last piece keeps the terminator,
         // so the gap that matters still lands after it.
         while (end - start > kMaxChunkChars) {
-            chunks_.append(text.mid(start, kMaxChunkChars));
-            start += kMaxChunkChars;
+            // Never cut between the \r and \n of a CRLF. Each half on its own
+            // becomes a CR on the wire, and the far end gets two Enters.
+            int cut = kMaxChunkChars;
+            if (text.at(start + cut - 1) == QLatin1Char('\r') &&
+                text.at(start + cut) == QLatin1Char('\n')) {
+                --cut;
+            }
+            chunks_.append(text.mid(start, cut));
+            start += cut;
         }
         chunks_.append(text.mid(start, end - start));
         start = end;
