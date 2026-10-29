@@ -222,6 +222,22 @@ if "%PKGVER%"=="" (
 for /f "tokens=1-3 delims=." %%a in ("%PKGVER%") do set "SHORTVER=%%a.%%b.%%c"
 echo ==^> package version %PKGVER%
 
+REM --- resources.pri ---------------------------------------------------------
+REM
+REM Without a resources.pri, Windows sees only the base file names in Assets:
+REM the scale-200 and targetsize-*_altform-unplated variants are ignored, so
+REM the taskbar and Start show a small, plated (coloured square) icon. makepri
+REM indexes the variants so the shell can pick the right one.
+REM
+REM The config goes beside the layout, not in it, so it is not packed.
+
+set "PRICONF=dist\priconfig.xml"
+echo ==^> generating resources.pri
+"%SDKBIN%\makepri.exe" createconfig /cf "%PRICONF%" /dq en-US /pv 10.0.0 /o
+if errorlevel 1 goto fail
+"%SDKBIN%\makepri.exe" new /pr "%MSIXDIR%" /cf "%PRICONF%" /mn "%MSIXDIR%\AppxManifest.xml" /of "%MSIXDIR%\resources.pri" /o
+if errorlevel 1 goto fail
+
 REM --- pack ------------------------------------------------------------------
 
 set "PKG=dist\Omega-%SHORTVER%-x64.msix"

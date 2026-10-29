@@ -190,6 +190,11 @@ set_target_properties(omega PROPERTIES
 if(WIN32)
     set_target_properties(omega PROPERTIES WIN32_EXECUTABLE ON)
 
+    # The exe's own icon, compiled in as a resource. Without it Explorer and
+    # any shortcut show the generic exe icon, whatever setWindowIcon() does
+    # at runtime. See omega.rc.
+    target_sources(omega PRIVATE omega.rc)
+
     # Qt supplies the WinMain that calls main(), so main() stays portable and
     # nothing in the source changes. Qt6::Core normally brings this in through
     # its usage requirements; naming it is belt and braces against a link
