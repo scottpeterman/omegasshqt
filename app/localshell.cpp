@@ -126,7 +126,11 @@ ShellCommand resolveShell(const QString &commandLine) {
         return cmd;
     }
     const QString program = parts.takeFirst();
-    cmd.program = findProgram(program);
+    // Native separators matter on Windows, and not only for looks. Qt finds
+    // C:/Windows/System32/cmd.exe, and cmd.exe scans its whole command line,
+    // its own path included, for switches: "/cmd.exe" reads as /c md.exe, so
+    // cmd runs that and exits 0 before a prompt ever appears.
+    cmd.program = QDir::toNativeSeparators(findProgram(program));
     cmd.args = parts;
     if (cmd.program.isEmpty()) {
         cmd.error = QObject::tr("shell not found: %1").arg(program);
