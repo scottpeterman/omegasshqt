@@ -21,6 +21,10 @@ REM exports a plain C ABI and imports only kernel32, ntdll and the UCRT, so
 REM which C++ ABI built its insides does not reach omega.exe. The msvc target
 REM needs the Windows SDK visible to Zig and buys nothing.
 REM
+REM -Dcpu=baseline is passed for the same reason as in build-ghostty-vt.sh: the
+REM library must run on any x86-64, not just CPUs like the build machine's. An
+REM explicit target already implies it here; the flag makes it not depend on that.
+REM
 REM No path variable is expanded inside a ( ) block below -- "(x86)" in a path
 REM closes the block early. Errors go through :fail instead.
 setlocal
@@ -68,7 +72,7 @@ if errorlevel 1 goto fail
 
 echo ==^> building libghostty-vt %REF% with zig %HAVE_ZIG% into %PREFIX%
 pushd "%SRC%"
-"%ZIG%" build -Demit-lib-vt -Demit-xcframework=false -Doptimize=ReleaseFast -Dtarget=x86_64-windows-gnu --prefix "%PREFIX%"
+"%ZIG%" build -Demit-lib-vt -Demit-xcframework=false -Doptimize=ReleaseFast -Dtarget=x86_64-windows-gnu -Dcpu=baseline --prefix "%PREFIX%"
 set "RC=%ERRORLEVEL%"
 popd
 set "MSG=zig build failed"

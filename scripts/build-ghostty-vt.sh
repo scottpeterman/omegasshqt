@@ -21,6 +21,14 @@
 # minimum (build.zig.zon) and Zig changes enough between minors to break the
 # build outright. Bump them together, deliberately.
 #
+# BASELINE CPU. -Dcpu=baseline, always. Without it Zig optimises for the CPU
+# of the machine doing the build, and on Linux Ghostty's build does not
+# override that (it does on macOS, and an explicit Windows target gets a
+# generic CPU anyway). A CI runner has AVX-512; a Chromebook does not, and the
+# library died with "Illegal instruction" the moment a session fed it bytes.
+# Baseline costs nothing measurable: Ghostty's SIMD layer picks AVX2/AVX-512
+# code paths at runtime on CPUs that have them (within noise, measured).
+#
 # Takes about five minutes the first time. Zig caches what it can; CI caches
 # the whole prefix keyed on the tag and the Zig version.
 set -euo pipefail
@@ -68,7 +76,7 @@ if [[ ! -d "${SRC}/.git" ]]; then
 fi
 
 say "building libghostty-vt ${REF} with zig ${HAVE_ZIG} into ${PREFIX}"
-(cd "${SRC}" && "${ZIG}" build -Demit-lib-vt -Demit-xcframework=false -Doptimize=ReleaseFast --prefix "${PREFIX}")
+(cd "${SRC}" && "${ZIG}" build -Demit-lib-vt -Demit-xcframework=false -Doptimize=ReleaseFast -Dcpu=baseline --prefix "${PREFIX}")
 
 case "$(uname -s)" in
     Darwin) LIB="$(ls "${PREFIX}"/lib/libghostty-vt*.dylib 2>/dev/null | head -1 || true)" ;;
