@@ -73,10 +73,13 @@ struct Folder {
 // This is the column that stopped telnet and serial being saved session
 // types. They were quick-connect only to keep the schema unchanged for
 // nterm-qt, which is retired.
+// "local" is a shell on this machine: no host, no port, no credential. Its
+// own two columns are local_command and local_dir.
 enum class SessionTransport {
     Ssh,
     Telnet,
     Serial,
+    Local,
 };
 
 const char *transportName(SessionTransport transport);
@@ -152,6 +155,15 @@ struct Session {
 
     // --- telnet -----------------------------------------------------------
     std::optional<bool> telnet_crlf;
+
+    // --- local shell ------------------------------------------------------
+    // The program and its arguments as one command line ("pwsh -NoLogo",
+    // "/bin/zsh -l"). NULL or empty means the platform default, resolved when
+    // the session is opened rather than when it was saved -- so a session made
+    // before PowerShell 7 was installed starts using it afterwards.
+    std::optional<std::string> local_command;
+    // Where the shell starts; NULL means the home directory.
+    std::optional<std::string> local_dir;
 
     // --- terminal behaviour -------------------------------------------------
     // Wheel over a full-screen application scrolls that application instead of

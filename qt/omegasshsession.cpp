@@ -44,6 +44,8 @@ const char *transportName(Transport t) {
             return "telnet";
         case Transport::Serial:
             return "serial";
+        case Transport::Local:
+            return "local";
         case Transport::Ssh:
             break;
     }
@@ -53,6 +55,7 @@ const char *transportName(Transport t) {
 Transport transportFromName(const QString &s) {
     if (s == QLatin1String("telnet")) return Transport::Telnet;
     if (s == QLatin1String("serial")) return Transport::Serial;
+    if (s == QLatin1String("local")) return Transport::Local;
     return Transport::Ssh;
 }
 
@@ -170,6 +173,11 @@ QJsonObject Config::toJson() const {
             if (!stopBits.isEmpty()) o["stop_bits"] = stopBits;
             // No term: a serial console has nowhere to declare one.
             break;
+
+        case Transport::Local:
+            // Nothing: a local shell never reaches the library. start()
+            // refuses it before this object is ever serialised for a dial.
+            break;
     }
 
     o["cols"] = cols;
@@ -239,7 +247,18 @@ QVector<SerialPortInfo> OmegaSshSession::serialPorts() {
 
 QString OmegaSshSession::takeLibraryError() { return take(omegassh_last_error()); }
 
-bool OmegaSshSession::start(const Config &config) { return start(config.toJson()); }
+bool OmegaSshSession::start(const Config &config) {
+    // Refused here, with a reason, rather than sent: the library would reject
+    // "local" as an unknown transport anyway, but this says what is actually
+    // wrong -- the caller routed a local shell to the network session.
+    if (config.transport == Transport::Local) {
+        m_error = tr("local shells are started by the application, not the "
+                     "omegassh library");
+        emit errorOccurred(m_error);
+        return false;
+    }
+    return start(config.toJson());
+}
 
 bool OmegaSshSession::start(const QJsonObject &config) {
     if (m_handle > 0) {

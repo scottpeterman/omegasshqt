@@ -40,6 +40,7 @@ class QTimer;
 
 namespace omega::app {
 
+class TabSession;
 class TerminalView;
 
 class TerminalTab : public QWidget {
@@ -324,6 +325,13 @@ protected:
 
 private:
     void setOverlayVisible(bool visible);
+
+    // stateLabel() with a local shell's own words: a shell is started, not
+    // dialled, and it exits rather than disconnecting.
+    QString stateText(omegassh::State s) const;
+    bool isLocal() const {
+        return haveConfig_ && config_.transport == omegassh::Transport::Local;
+    }
     void onStateChanged(omegassh::State state);
     void publishLink();
     void showContextMenu(const QPoint &pos);
@@ -404,7 +412,9 @@ private:
     QString suggestedCapturePath() const;
 
     TerminalView *terminal_ = nullptr;
-    omegassh::OmegaSshSession *session_ = nullptr;
+    // An omegassh network session or a local shell, chosen per start() by the
+    // config's transport. See tabsession.h.
+    TabSession *session_ = nullptr;
 
     // The overlay is a panel now, not a bare label: message, spinner and a
     // Cancel button on one background.

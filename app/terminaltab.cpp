@@ -34,6 +34,8 @@
 #include "app/kbdprompt.h"
 #include "app/hostkeypromptdialog.h"
 #include "app/pasteconfirmdialog.h"
+#include "app/localshell.h"
+#include "app/tabsession.h"
 #include "app/terminalview.h"
 
 namespace omega::app {
@@ -119,6 +121,8 @@ int defaultPasteBaud(const omegassh::Config &config) {
     switch (config.transport) {
         case omegassh::Transport::Serial: return qMax(0, config.baud);
         case omegassh::Transport::Telnet: return 9600;
+        // A local pty is a kernel buffer, not a line: nothing to overrun.
+        case omegassh::Transport::Local:  break;
         case omegassh::Transport::Ssh:    break;
     }
     return 0;
@@ -243,12 +247,12 @@ TerminalTab::TerminalTab(QWidget *parent) : QWidget(parent) {
     antiIdleTimer_->setSingleShot(true);
     connect(antiIdleTimer_, &QTimer::timeout, this, &TerminalTab::sendAntiIdle);
 
-    session_ = new omegassh::OmegaSshSession(this);
+    session_ = new TabSession(this);
 
     // The three connections, made by the same function terminal_window uses.
     // Getting one wrong produces a terminal that looks almost right, and the
     // third -- resize -- is the one people forget.
-    omegassh::attach(terminal_, session_);
+    attach(terminal_, session_);
 
     // Rides alongside the resize connection attach() just made, for the same
     // reason capture rides alongside dataReceived: attach() stays the one
@@ -280,14 +284,14 @@ TerminalTab::TerminalTab(QWidget *parent) : QWidget(parent) {
     // Capture taps the same signal rather than sitting between the two, so
     // attach() stays the one description of the wiring and a capture that
     // failed can never cost the terminal its bytes.
-    connect(session_, &omegassh::OmegaSshSession::dataReceived, this,
+    connect(session_, &TabSession::dataReceived, this,
             [this](const QByteArray &data) { capture_.write(data); });
 
-    connect(session_, &omegassh::OmegaSshSession::stateChanged, this,
+    connect(session_, &TabSession::stateChanged, this,
             &TerminalTab::onStateChanged);
-    connect(session_, &omegassh::OmegaSshSession::errorOccurred, this,
+    connect(session_, &TabSession::errorOccurred, this,
             [this](const QString &message) { error_ = message; });
-    connect(session_, &omegassh::OmegaSshSession::finished, this,
+    connect(session_, &TabSession::finished, this,
             [this](int code) {
                 // A teardown that this tab asked for as part of a host key
                 // re-dial is not the session ending. Forwarding it would have
@@ -301,8 +305,13 @@ TerminalTab::TerminalTab(QWidget *parent) : QWidget(parent) {
 }
 
 bool TerminalTab::start(const omegassh::Config &config) {
-    host_ = config.transport == omegassh::Transport::Serial ? config.serialPort
-                                                            : config.host;
+    switch (config.transport) {
+        case omegassh::Transport::Serial: host_ = config.serialPort; break;
+        case omegassh::Transport::Local:
+            host_ = shellDisplayName(config.localCommand);
+            break;
+        default: host_ = config.host; break;
+    }
     pasteBaud_ = defaultPasteBaud(config);
 
     // The overlay goes up BEFORE the dial, not when the first state arrives.
@@ -335,7 +344,7 @@ bool TerminalTab::start(const omegassh::Config &config) {
         config_.rows = lastRows_;
     }
 
-    setOverlayMessage(stateLabel(omegassh::State::Connecting), true, true);
+    setOverlayMessage(stateText(omegassh::State::Connecting), true, true);
 
     // The ribbon describes what was dialled, so it is filled from the config
     // rather than from anything the far end says -- which means it is right
@@ -423,7 +432,7 @@ void TerminalTab::reconnect() {
     session_->terminate();
     redialing_ = false;
 
-    setOverlayMessage(stateLabel(omegassh::State::Connecting), true, true);
+    setOverlayMessage(stateText(omegassh::State::Connecting), true, true);
 
     // Re-filled, because a reconnect can follow a setDisplayName and the
     // ribbon's name would otherwise be the one from the first dial.
@@ -752,6 +761,13 @@ void TerminalTab::noteOutbound() {
 }
 
 void TerminalTab::rearmAntiIdle() {
+    // Never for a local shell. Anti-idle exists to keep a far end from timing
+    // out an idle login; a local shell has no far end, and the keystroke would
+    // land in whatever the operator left at the prompt.
+    if (isLocal()) {
+        antiIdleTimer_->stop();
+        return;
+    }
     // Armed on the CONFIG alone, not on antiIdleAllowed(). The suppressions --
     // alternate screen, paste in flight -- are conditions at the moment of
     // firing, and a timer stopped because htop was up would never restart when
@@ -1000,7 +1016,7 @@ void TerminalTab::onStateChanged(omegassh::State s) {
     if (s == omegassh::State::Connected) {
         setOverlayVisible(false);
         spinnerTimer_->stop();
-        emit statusChanged(stateLabel(s));
+        emit statusChanged(stateText(s));
         return;
     }
 
@@ -1011,7 +1027,7 @@ void TerminalTab::onStateChanged(omegassh::State s) {
                          s == omegassh::State::Authenticating ||
                          s == omegassh::State::Reconnecting;
 
-    QString message = stateLabel(s);
+    QString message = stateText(s);
     if (s == omegassh::State::Failed && !error().isEmpty()) {
         // First contact with a host is not really a failure, it is a question
         // nobody asked. If the answer is yes this tab dials again and the
@@ -1047,6 +1063,21 @@ void TerminalTab::onStateChanged(omegassh::State s) {
     // the reason is the only thing on screen when a dial produced no output
     // to read.
     setOverlayMessage(message, dialing, dialing);
+}
+
+QString TerminalTab::stateText(omegassh::State s) const {
+    if (!isLocal()) return stateLabel(s);
+    switch (s) {
+        case omegassh::State::Connecting: return tr("Starting shell...");
+        case omegassh::State::Connected:  return tr("Shell running");
+        case omegassh::State::Disconnected: {
+            const int code = session_->exitCode();
+            return code >= 0 ? tr("Shell exited (code %1)").arg(code)
+                             : tr("Shell exited");
+        }
+        default: break;
+    }
+    return stateLabel(s);
 }
 
 // -----------------------------------------------------------------------------

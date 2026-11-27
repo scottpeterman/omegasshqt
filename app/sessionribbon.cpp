@@ -2,6 +2,8 @@
 
 #include "app/sessionribbon.h"
 
+#include "app/localshell.h"
+
 #include <QHBoxLayout>
 #include <QLabel>
 #include <QPainter>
@@ -31,6 +33,7 @@ QString transportWord(omegassh::Transport t) {
     switch (t) {
         case omegassh::Transport::Telnet: return QStringLiteral("telnet");
         case omegassh::Transport::Serial: return QStringLiteral("serial");
+        case omegassh::Transport::Local:  return QStringLiteral("local");
         case omegassh::Transport::Ssh:    break;
     }
     return QStringLiteral("ssh");
@@ -85,6 +88,13 @@ void SessionRibbon::setSession(const QString &displayName,
         // A serial line has no host and no port; showing "…:22" for one would
         // be a lie in the field most likely to be read.
         target_->setText(config.serialPort);
+    } else if (config.transport == omegassh::Transport::Local) {
+        // The command line as it will run -- the default spelled out, so the
+        // ribbon says "pwsh -NoLogo" rather than nothing for a session that
+        // left it to the platform.
+        target_->setText(config.localCommand.trimmed().isEmpty()
+                             ? defaultShellCommandLine()
+                             : config.localCommand.trimmed());
     } else {
         target_->setText(QStringLiteral("%1:%2").arg(config.host).arg(config.port));
     }

@@ -96,6 +96,9 @@ constexpr AddedColumn kAddedColumns[] = {
 
     {"font_size", "INTEGER"},
     {"theme_name", "TEXT"},
+
+    {"local_command", "TEXT"},
+    {"local_dir", "TEXT"},
 };
 
 void setStatus(Status *out, Status s) {
@@ -211,6 +214,8 @@ Session readSession(sqlite3_stmt *st) {
     s.wheel_alt_screen = colOptBool(st, 34);
     s.font_size = colOptInt32(st, 35);
     s.theme_name = colOptText(st, 36);
+    s.local_command = colOptText(st, 37);
+    s.local_dir = colOptText(st, 38);
     return s;
 }
 
@@ -231,7 +236,7 @@ constexpr const char *kSessionCols =
     "anti_idle_enabled, anti_idle_seconds, anti_idle_keystroke, "
     "anti_idle_custom, serial_port, serial_baud, serial_data_bits, "
     "serial_parity, serial_stop_bits, telnet_crlf, wheel_alt_screen, "
-    "font_size, theme_name";
+    "font_size, theme_name, local_command, local_dir";
 
 // The writable ones: everything above except id and the three the store owns
 // (created_at, last_connected, connect_count).
@@ -244,7 +249,7 @@ constexpr const char *kSessionWriteCols =
     "anti_idle_enabled, anti_idle_seconds, anti_idle_keystroke, "
     "anti_idle_custom, serial_port, serial_baud, serial_data_bits, "
     "serial_parity, serial_stop_bits, telnet_crlf, wheel_alt_screen, "
-    "font_size, theme_name";
+    "font_size, theme_name, local_command, local_dir";
 
 // Binds every writable column starting at `base` (1 for the first). Shared
 // by addSession and updateSession so the two cannot disagree about order --
@@ -287,6 +292,8 @@ void bindWritable(sqlite3_stmt *st, int base, const Session &s, int position) {
     bindOptBool(st, i++, s.wheel_alt_screen);
     bindOptInt32(st, i++, s.font_size);
     bindOptText(st, i++, s.theme_name);
+    bindOptText(st, i++, s.local_command);
+    bindOptText(st, i++, s.local_dir);
 }
 
 // Next position among siblings: MAX(position) + 1, or 0 when the group is
@@ -355,6 +362,7 @@ const char *transportName(SessionTransport transport) {
     switch (transport) {
         case SessionTransport::Telnet: return "telnet";
         case SessionTransport::Serial: return "serial";
+        case SessionTransport::Local:  return "local";
         case SessionTransport::Ssh:    break;
     }
     return "ssh";
@@ -367,6 +375,7 @@ SessionTransport transportFromName(const std::string &name, bool *known) {
     if (known) *known = true;
     if (name == "telnet") return SessionTransport::Telnet;
     if (name == "serial") return SessionTransport::Serial;
+    if (name == "local") return SessionTransport::Local;
     if (name != "ssh" && known) *known = false;
     return SessionTransport::Ssh;
 }

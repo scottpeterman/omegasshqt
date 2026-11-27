@@ -164,12 +164,15 @@ private:
         int port = 22;
         int position = 0;
         bool expanded = true;
+        // A local shell has no port; hostname carries the shell's label.
+        bool local = false;
 
         Node *parent = nullptr;
         std::vector<std::unique_ptr<Node>> children;
     };
 
     QString storedDetail(const Node *node) const;
+    static QString hostLine(const Node *node);
 
     Node *nodeFor(const QModelIndex &index) const;
     Node *findNode(Kind kind, qint64 id) const;

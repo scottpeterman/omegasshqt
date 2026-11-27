@@ -26,6 +26,7 @@
 
 #include "app/antiidle.h"
 #include "app/effectiveconfig.h"
+#include "app/localshell.h"
 
 namespace omega::app {
 namespace {
@@ -151,6 +152,7 @@ int transportIndex(sessions::SessionTransport transport) {
     switch (transport) {
         case sessions::SessionTransport::Telnet: return 1;
         case sessions::SessionTransport::Serial: return 2;
+        case sessions::SessionTransport::Local:  return 3;
         case sessions::SessionTransport::Ssh:    break;
     }
     return 0;
@@ -160,6 +162,7 @@ sessions::SessionTransport transportAt(int index) {
     switch (index) {
         case 1:  return sessions::SessionTransport::Telnet;
         case 2:  return sessions::SessionTransport::Serial;
+        case 3:  return sessions::SessionTransport::Local;
         default: return sessions::SessionTransport::Ssh;
     }
 }
@@ -340,7 +343,7 @@ QWidget *SessionEditorDialog::buildConnectionPage() {
     transport_ = new QButtonGroup(this);
     transport_->setExclusive(true);
     int transportId = 0;
-    for (const QString &name : {tr("SSH"), tr("Telnet"), tr("Serial")}) {
+    for (const QString &name : {tr("SSH"), tr("Telnet"), tr("Serial"), tr("Local")}) {
         auto *segment = new QPushButton(name, track);
         segment->setProperty("segment", true);
         segment->setCheckable(true);
@@ -429,6 +432,25 @@ QWidget *SessionEditorDialog::buildConnectionPage() {
                        new QLabel(tr("8 data bits, no parity, 1 stop bit.")));
 
     pages_->addWidget(serial);
+
+    // --- page 2: a local shell --------------------------------------------
+    auto *local = new QWidget;
+    auto *localForm = new QFormLayout(local);
+
+    // Editable: the list is what this machine has now, and a saved session
+    // may name a shell with arguments, or one installed later.
+    localShell_ = new QComboBox;
+    localShell_->setEditable(true);
+    localShell_->addItem(tr("Default shell"), QString());
+    for (const QString &line : availableShellCommandLines())
+        localShell_->addItem(line, line);
+    localForm->addRow(fieldLabel(tr("Shell"), local), localShell_);
+
+    localDir_ = new QLineEdit;
+    localDir_->setPlaceholderText(tr("home folder"));
+    localForm->addRow(fieldLabel(tr("Start in"), local), localDir_);
+
+    pages_->addWidget(local);
     targetLayout->addWidget(pages_);
     outer->addWidget(targetBox);
     outer->addStretch(1);
@@ -773,15 +795,25 @@ void SessionEditorDialog::refreshSerialPorts() {
     }
 }
 
+// The command line the shell row holds, or empty for the platform default.
+// "Default shell" is an item with empty data; anything typed is taken as is.
+QString SessionEditorDialog::currentShellLine() const {
+    const int at = localShell_->currentIndex();
+    if (at >= 0 && localShell_->itemText(at) == localShell_->currentText())
+        return localShell_->itemData(at).toString();
+    return localShell_->currentText().trimmed();
+}
+
 void SessionEditorDialog::onTransportChanged(int index) {
     const bool serial = index == 2;
+    const bool local = index == 3;
     const bool ssh = index == 0;
 
-    pages_->setCurrentIndex(serial ? 1 : 0);
+    pages_->setCurrentIndex(local ? 2 : serial ? 1 : 0);
 
     if (serial) {
         refreshSerialPorts();
-    } else {
+    } else if (!local) {
         // The port follows the transport, but only while it still holds the
         // other transport's default. Somebody who typed 2222 meant it.
         if (ssh && port_->value() == 23) port_->setValue(22);
@@ -839,6 +871,19 @@ void SessionEditorDialog::loadFrom(const sessions::Session &session) {
     }
 
     setTextValue(username_, session.username);
+
+    // --- local ------------------------------------------------------------
+    if (session.local_command && !session.local_command->empty()) {
+        const QString line = toQ(*session.local_command);
+        const int at = localShell_->findData(line);
+        if (at >= 0) {
+            localShell_->setCurrentIndex(at);
+        } else {
+            localShell_->addItem(line, line);
+            localShell_->setCurrentIndex(localShell_->count() - 1);
+        }
+    }
+    setTextValue(localDir_, session.local_dir);
 
     // --- serial -----------------------------------------------------------
     if (session.serial_port) {
@@ -959,7 +1004,12 @@ void SessionEditorDialog::onAccept() {
                            name_, 0);
     }
 
-    if (transportAt(selectedTransport()) == sessions::SessionTransport::Serial) {
+    const sessions::SessionTransport chosen = transportAt(selectedTransport());
+    if (chosen == sessions::SessionTransport::Local) {
+        const ShellCommand shell = resolveShell(currentShellLine());
+        if (!shell.ok())
+            return showProblem(shell.error, localShell_, 0);
+    } else if (chosen == sessions::SessionTransport::Serial) {
         if (serialPort_->currentText().trimmed().isEmpty()) {
             return showProblem(tr("A serial session needs a port. If the list "
                                   "is empty, no adapter was found."),
@@ -999,8 +1049,25 @@ sessions::Session SessionEditorDialog::session() const {
     out.transport = transportAt(selectedTransport());
     const bool serial = out.transport == sessions::SessionTransport::Serial;
     const bool ssh = out.transport == sessions::SessionTransport::Ssh;
+    const bool local = out.transport == sessions::SessionTransport::Local;
 
-    if (serial) {
+    if (local) {
+        const QString line = currentShellLine();
+        if (line.isEmpty())
+            out.local_command.reset();
+        else
+            out.local_command = line.toStdString();
+        out.local_dir = textValue(localDir_);
+
+        // hostname is NOT NULL and the tree renders it, as with serial: the
+        // shell's name is the label. local_command is what the tab reads.
+        const ShellCommand shell = resolveShell(line);
+        out.hostname = (shell.ok() ? shellDisplayName(shell.program)
+                                   : QStringLiteral("local"))
+                           .toStdString();
+        out.serial_port.reset();
+        out.serial_baud.reset();
+    } else if (serial) {
         const QString port = currentSerialName();
         out.serial_port = port.toStdString();
         out.serial_baud = baud_->currentData().toInt();
@@ -1010,11 +1077,15 @@ sessions::Session SessionEditorDialog::session() const {
         // the resolver reads; this copy is a label, and a stale one is a
         // display bug rather than a connection that goes somewhere else.
         out.hostname = port.toStdString();
+        out.local_command.reset();
+        out.local_dir.reset();
     } else {
         out.hostname = host_->text().trimmed().toStdString();
         out.port = port_->value();
         out.serial_port.reset();
         out.serial_baud.reset();
+        out.local_command.reset();
+        out.local_dir.reset();
     }
 
     // Credentials are SSH's alone. Telnet has no authentication step and the

@@ -27,6 +27,7 @@
 
 #include <QApplication>
 #include <QLayout>
+#include <QPushButton>
 #include <QSpinBox>
 
 #include "app/sessioneditordialog.h"
@@ -455,6 +456,67 @@ void telnetClearsCredentials() {
        "keeps CR LF switched off");
 }
 
+void localKeepsItsShell() {
+    std::printf("a local session\n");
+
+    AppSettings settings;
+    OmegaSettings omega;
+
+    Session in;
+    in.name = "my-shell";
+    in.hostname = "stale";
+    in.transport = SessionTransport::Local;
+    in.local_command = std::string("/bin/sh -l");
+    in.local_dir = std::string("/tmp");
+    in.credential_name = std::string("lab-admin");
+    in.jump_host = std::string("lab-bastion");
+
+    const Session out = roundTrip(in, settings, omega);
+
+    ok(out.transport == SessionTransport::Local, "stays local");
+    ok(out.local_command == in.local_command,
+       "keeps a command line the list may not offer");
+    ok(out.local_dir == in.local_dir, "keeps its start folder");
+    ok(out.hostname == "sh", "carries the shell's name for display");
+    ok(!out.credential_name.has_value(), "drops a credential");
+    ok(!out.jump_host.has_value(), "drops a jump host");
+
+    Session bare;
+    bare.name = "default-shell";
+    bare.transport = SessionTransport::Local;
+    const Session outBare = roundTrip(bare, settings, omega);
+    ok(!outBare.local_command.has_value(),
+       "the default shell is saved as absent, not as today's default");
+    ok(!outBare.local_dir.has_value(), "no start folder stays absent");
+    ok(!outBare.hostname.empty(), "and still has a label for the tree");
+}
+
+void switchingToLocalDropsNetworkFields() {
+    std::printf("an ssh session switched to local\n");
+
+    AppSettings settings;
+    OmegaSettings omega;
+
+    Session in;
+    in.name = "was-ssh";
+    in.hostname = "10.20.0.11";
+    in.transport = SessionTransport::Ssh;
+    in.credential_name = std::string("lab-admin");
+
+    SessionEditorDialog dialog(in, nullptr, nullptr, settings, omega, nullptr);
+    QPushButton *localSegment = nullptr;
+    for (QPushButton *b : dialog.findChildren<QPushButton *>())
+        if (b->text() == QStringLiteral("Local")) localSegment = b;
+    ok(localSegment != nullptr, "offers a Local segment");
+    if (!localSegment) return;
+    localSegment->click();
+
+    const Session out = dialog.session();
+    ok(out.transport == SessionTransport::Local, "saves as local");
+    ok(!out.credential_name.has_value(), "drops the credential");
+    ok(out.hostname != "10.20.0.11", "relabels the host line");
+}
+
 void inheritedKeystrokeClearsCustomBytes() {
     std::printf("anti-idle custom bytes\n");
 
@@ -501,6 +563,8 @@ int main(int argc, char **argv) {
     unpacedIsAValue();
     serialClearsWhatItCannotUse();
     telnetClearsCredentials();
+    localKeepsItsShell();
+    switchingToLocalDropsNetworkFields();
     inheritedKeystrokeClearsCustomBytes();
     installedThemeSelects(themeDir);
     steppingOffInheritLandsOnTheInheritedValue();

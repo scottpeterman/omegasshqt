@@ -59,9 +59,17 @@ void SessionTreeModel::setLiveRegistry(LiveSessionRegistry *registry) {
 // subtitle a session has when nothing is connected to it, which is most of
 // them most of the time.
 QString SessionTreeModel::storedDetail(const Node *n) const {
-    const QString hostPort = QStringLiteral("%1:%2").arg(n->hostname).arg(n->port);
+    const QString hostPort = hostLine(n);
+    if (n->local) return hostPort;
     return n->username.isEmpty() ? hostPort
                                  : n->username + QLatin1Char('@') + hostPort;
+}
+
+// host:port for a network or serial target; the shell's label for a local
+// one, which has no port worth showing.
+QString SessionTreeModel::hostLine(const Node *n) {
+    if (n->local) return n->hostname;
+    return QStringLiteral("%1:%2").arg(n->hostname).arg(n->port);
 }
 
 void SessionTreeModel::reload() {
@@ -125,6 +133,7 @@ void SessionTreeModel::reload() {
         node->description = toQ(s.description);
         node->hostname = toQ(s.hostname);
         node->port = s.port;
+        node->local = s.transport == sessions::SessionTransport::Local;
         // For the delegate's subtitle. The session's own username, not the
         // resolved one -- resolution needs the vault and the settings, and a
         // tree row is not worth opening a vault for.
@@ -425,8 +434,7 @@ QVariant SessionTreeModel::data(const QModelIndex &index, int role) const {
             return n->name;
 
         case Qt::ToolTipRole:
-            if (n->kind == SessionItem)
-                return QStringLiteral("%1:%2").arg(n->hostname).arg(n->port);
+            if (n->kind == SessionItem) return hostLine(n);
             return n->name;
 
         case Qt::DecorationRole: {
@@ -444,9 +452,7 @@ QVariant SessionTreeModel::data(const QModelIndex &index, int role) const {
         case NameRole:
             return n->name;
         case HostRole:
-            return n->kind == SessionItem
-                       ? QStringLiteral("%1:%2").arg(n->hostname).arg(n->port)
-                       : QString();
+            return n->kind == SessionItem ? hostLine(n) : QString();
         case ExpandedRole:
             return n->kind == FolderItem ? n->expanded : false;
 

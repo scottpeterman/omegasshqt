@@ -117,6 +117,10 @@ add_library(omega_shell STATIC
     spinarrowstyle.h
     vaultunlockdialog.cpp
     vaultunlockdialog.h
+    localshell.cpp
+    localshell.h
+    tabsession.cpp
+    tabsession.h
     terminaltab.cpp
     terminaltab.h
     terminalview.cpp

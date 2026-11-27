@@ -41,10 +41,16 @@ namespace omegassh {
 // Transport selects what the session runs over. It is chosen once, at start,
 // and nothing afterwards depends on it: write, resize, terminate and the
 // signals are the same for all three.
+// Local is a shell on this machine. It travels in Config like the others so a
+// session tree, a quick-connect dialog and a tab can carry one without a
+// second currency -- but the omegassh library never runs it: start() refuses
+// a Local config, and the application starts the shell itself (qtpyte's
+// PtySession, forkpty or ConPTY). See app/tabsession.h.
 enum class Transport {
     Ssh,
     Telnet,
     Serial,
+    Local,
 };
 
 // HostKeyPolicy mirrors the JSON values the C API accepts. SSH only.
@@ -173,6 +179,15 @@ struct Config {
     int dataBits = 8;
     QString parity = QStringLiteral("none");   // none|odd|even|mark|space
     QString stopBits = QStringLiteral("1");    // 1|1.5|2
+
+    // --- local ----------------------------------------------------------
+
+    // The program and its arguments as one command line, split the way a shell
+    // would (QProcess::splitCommand). Empty means the platform's default shell
+    // -- see app/localshell.h. Never sent to the library.
+    QString localCommand;
+    // Where the shell starts. Empty means the user's home directory.
+    QString localDirectory;
 
     // --- shared ---------------------------------------------------------
 

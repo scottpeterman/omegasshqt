@@ -15,6 +15,7 @@
 #include <QStackedWidget>
 #include <QVBoxLayout>
 
+#include "app/localshell.h"
 #include "app/modalframe.h"
 
 namespace omega::app {
@@ -79,7 +80,7 @@ void QuickConnectDialog::buildUi() {
     transport_->setExclusive(true);
 
     int id = 0;
-    for (const QString &name : {tr("SSH"), tr("Telnet"), tr("Serial")}) {
+    for (const QString &name : {tr("SSH"), tr("Telnet"), tr("Serial"), tr("Local")}) {
         auto *segment = new QPushButton(name, track);
         segment->setProperty("segment", true);
         segment->setCheckable(true);
@@ -166,6 +167,31 @@ void QuickConnectDialog::buildUi() {
                                  serial));
 
     pages_->addWidget(serial);
+
+    // --- page 2: local shell ------------------------------------------------
+    auto *local = new QWidget(pages_);
+    local->setProperty("bare", true);
+    auto *localForm = new QFormLayout(local);
+    localForm->setContentsMargins(0, 12, 0, 0);
+    styleForm(localForm);
+
+    localShell_ = new QComboBox(local);
+    localShell_->setEditable(true);
+    localShell_->setProperty("mono", true);
+    localShell_->addItems(availableShellCommandLines());
+    localForm->addRow(fieldLabel(tr("Shell"), local), localShell_);
+
+    localDir_ = new QLineEdit(local);
+    localDir_->setPlaceholderText(tr("home folder"));
+    localDir_->setProperty("mono", true);
+    localForm->addRow(fieldLabel(tr("Start in"), local), localDir_);
+
+    localForm->addRow(QString(),
+                      descLabel(tr("Runs on this computer. Pick a shell or type "
+                                   "any command line."),
+                                local));
+
+    pages_->addWidget(local);
     frame->body()->addWidget(pages_);
     frame->body()->addStretch();
 
@@ -239,6 +265,12 @@ void QuickConnectDialog::onCredentialChanged() {
 }
 
 void QuickConnectDialog::onTransportChanged(int index) {
+    if (index == 3) {
+        pages_->setCurrentIndex(2);
+        localShell_->setFocus();
+        return;
+    }
+
     const bool serial = index == 2;
     pages_->setCurrentIndex(serial ? 1 : 0);
 
@@ -313,6 +345,11 @@ omegassh::Config QuickConnectDialog::config() const {
             cfg.baud = baud_->currentData().toInt();
             break;
         }
+        case 3:
+            cfg.transport = omegassh::Transport::Local;
+            cfg.localCommand = localShell_->currentText().trimmed();
+            cfg.localDirectory = localDir_->text().trimmed();
+            break;
         default:
             cfg.transport = omegassh::Transport::Ssh;
             cfg.host = host_->text().trimmed();

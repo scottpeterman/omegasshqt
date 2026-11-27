@@ -18,7 +18,12 @@
 //                            set is still live, and names it
 //   terminal_probe reconnect the guard on re-dialing a tab in place, and what a
 //                            refused re-dial leaves the tab text saying
-//   terminal_probe           all eight
+//   terminal_probe local     a local shell starts in the folder it was given,
+//                            with the environment it was given, reports its
+//                            exit code, restarts in place, ends once on
+//                            terminate, refuses a missing shell or folder,
+//                            and never receives an anti-idle keystroke
+//   terminal_probe           all nine
 //
 // Unlike the differentials there is no second implementation to compare
 // against here, so this one judges: it prints a line per case and exits
@@ -35,12 +40,14 @@
 #include <QApplication>
 #include <QByteArray>
 #include <QClipboard>
+#include <QDir>
 #include <QElapsedTimer>
 #include <QEventLoop>
 #include <QKeyEvent>
 #include <QTimer>
 #include <QLineEdit>
 #include <QStringList>
+#include <QTemporaryDir>
 #include <QVBoxLayout>
 #include <QWidget>
 
@@ -720,6 +727,123 @@ void runReconnect() {
 
 }  // namespace
 
+// Pumps the event loop until `done` holds or the time runs out. A local shell
+// answers in milliseconds; the limit is there for a loaded CI runner.
+template <typename Pred>
+bool waitFor(Pred done, int ms = 5000) {
+    QElapsedTimer t;
+    t.start();
+    while (!done() && t.elapsed() < ms) {
+        QCoreApplication::processEvents(QEventLoop::AllEvents, 20);
+    }
+    return done();
+}
+
+void runLocal() {
+#ifdef Q_OS_WIN
+    const QString shell = QStringLiteral("cmd /Q");
+    const QString printEnv = QStringLiteral("echo %CD% %TERM% %COLORTERM%\r");
+    const QString exitCmd = QStringLiteral("exit 7\r");
+#else
+    // -i so the shell prompts and reads like an interactive one, without
+    // depending on a profile the CI machine may not have.
+    const QString shell = QStringLiteral("/bin/sh -i");
+    const QString printEnv = QStringLiteral("echo \"$PWD $TERM $COLORTERM\"\r");
+    const QString exitCmd = QStringLiteral("exit 7\r");
+#endif
+    QTemporaryDir dir;
+    QWidget window;
+    auto *lay = new QVBoxLayout(&window);
+    auto *tab = new TerminalTab(&window);
+    lay->addWidget(tab);
+    window.resize(800, 400);
+    window.show();
+    auto *term = tab->findChild<qtpyte::TerminalWidget *>();
+
+    omegassh::Config cfg;
+    cfg.transport = omegassh::Transport::Local;
+    cfg.localCommand = shell;
+    cfg.localDirectory = dir.path();
+
+    // Anti-idle switched on, every second, with a keystroke that would show:
+    // a local shell must never be sent it. The check comes at the end.
+    AntiIdleConfig idle;
+    idle.enabled = true;
+    idle.seconds = 1;
+    idle.keystroke = AntiIdleKeystroke::Custom;
+    idle.custom = QByteArrayLiteral("#IDLE#");
+    tab->setAntiIdle(idle);
+
+    // Every finished() code, in order. QSignalSpy would need Qt Test.
+    QList<int> finished;
+    QObject::connect(tab, &TerminalTab::finished,
+                     [&finished](int code) { finished << code; });
+    const bool started = tab->start(cfg);
+    check("local/starts", started, tab->error().toUtf8());
+    // Each wait runs before its detail string is built: the order in which a
+    // call's arguments are evaluated is unspecified, and a detail computed
+    // before the wait reports the state it was waiting to leave.
+    const bool connected =
+        waitFor([&] { return tab->state() == omegassh::State::Connected; });
+    check("local/connected", connected,
+          "state=" + QByteArray::number(static_cast<int>(tab->state())));
+    check("local/titled", tab->title().contains(QStringLiteral("(local)")),
+          tab->title().toUtf8());
+
+    term->send(printEnv);
+    const QString want = QDir::toNativeSeparators(QDir(dir.path()).canonicalPath());
+    const bool envSeen = waitFor([&] {
+        const QString text = term->screenText();
+        return text.contains(QStringLiteral("xterm-256color truecolor")) &&
+               (text.contains(want) || text.contains(dir.path()));
+    });
+    check("local/start-folder-and-env", envSeen,
+          term->screenText().simplified().right(160).toUtf8());
+
+    // Anti-idle at 1s has had well over a second by now.
+    waitFor([] { return false; }, 2200);
+    check("local/no-anti-idle", !term->sessionText().contains(QStringLiteral("#IDLE#")),
+          "the custom keystroke never reached the shell");
+
+    term->send(exitCmd);
+    const bool exited = waitFor([&] { return finished.count() == 1; });
+    check("local/exit-code", exited && finished.at(0) == 7,
+          "finished=" + QByteArray::number(finished.count()) + " code=" +
+              (finished.isEmpty() ? QByteArray("-")
+                                  : QByteArray::number(finished.at(0))));
+    check("local/ended", !tab->isRunning() &&
+                             tab->state() == omegassh::State::Disconnected,
+          "state=" + QByteArray::number(static_cast<int>(tab->state())));
+    check("local/restart-offered", tab->canReconnect(), "");
+
+    tab->reconnect();
+    const bool restarted =
+        waitFor([&] { return tab->state() == omegassh::State::Connected; });
+    check("local/restarted", restarted && tab->isRunning(),
+          "state=" + QByteArray::number(static_cast<int>(tab->state())));
+
+    finished.clear();
+    tab->terminate();
+    QCoreApplication::processEvents();
+    check("local/terminate-ends-once", finished.count() == 1 && !tab->isRunning(),
+          "finished=" + QByteArray::number(finished.count()));
+
+    TerminalTab missing;
+    omegassh::Config bad = cfg;
+    bad.localCommand = QStringLiteral("/no/such/shell-for-omega");
+    check("local/missing-shell-refused",
+          !missing.start(bad) && missing.error().contains(QStringLiteral("not found")),
+          missing.error().toUtf8());
+
+    TerminalTab nowhere;
+    omegassh::Config badDir = cfg;
+    badDir.localDirectory = dir.path() + QStringLiteral("/does-not-exist");
+    check("local/missing-folder-refused",
+          !nowhere.start(badDir) &&
+              nowhere.error().contains(QStringLiteral("start folder")),
+          nowhere.error().toUtf8());
+}
+
 int main(int argc, char **argv) {
     QApplication app(argc, argv);
     const QStringList args = app.arguments();
@@ -749,6 +873,9 @@ int main(int argc, char **argv) {
     }
     if (which.isEmpty() || which == QLatin1String("reconnect")) {
         runReconnect();
+    }
+    if (which.isEmpty() || which == QLatin1String("local")) {
+        runLocal();
     }
 
     return failures == 0 ? 0 : 1;

@@ -150,6 +150,8 @@ void testRoundTrip(const std::string &dir) {
     s.wheel_alt_screen = false;
     s.font_size = 11;
     s.theme_name = "solarized";
+    s.local_command = "\"/opt/lab tools/zsh\" -l";
+    s.local_dir = "~/lab";
 
     const auto id = store->addSession(s, &status);
     ok(id.has_value(), "insert with every column set");
@@ -193,6 +195,9 @@ void testRoundTrip(const std::string &dir) {
     ok(r.wheel_alt_screen == std::optional<bool>(false), "wheel_alt_screen");
     ok(r.font_size == std::optional<int>(11), "font_size");
     ok(r.theme_name == std::optional<std::string>("solarized"), "theme_name");
+    ok(r.local_command == std::optional<std::string>("\"/opt/lab tools/zsh\" -l"),
+       "local_command, quotes and all");
+    ok(r.local_dir == std::optional<std::string>("~/lab"), "local_dir");
 
     // False and zero specifically: the two values a "0 means unset" scheme
     // would lose. paste_baud 0 is unpaced and is a real choice.
@@ -324,6 +329,33 @@ void testResolution() {
        "a serial session resolves to the serial transport");
     ok(r.config.serialPort == QStringLiteral("/dev/ttyUSB0"), "serial port");
     ok(r.config.baud == 9600, "serial baud");
+
+    Session local = bare;
+    local.transport = SessionTransport::Local;
+    local.local_command = "/bin/sh";
+    local.local_dir = "/tmp";
+    r = omega::app::resolveSession(local, globals, omega, 0);
+    ok(r.config.transport == omegassh::Transport::Local,
+       "a local session resolves to the local transport");
+    ok(r.config.localCommand == QStringLiteral("/bin/sh"), "local command");
+    ok(r.config.localDirectory == QStringLiteral("/tmp"), "local start folder");
+
+    // A default credential is an SSH answer. Handed to a local shell it would
+    // mean nothing, and a vault handle would cross for no reason.
+    const auto savedAuth = omega.ssh_default_auth;
+    omega.ssh_default_auth = omega::app::SshDefaultAuth::VaultDefault;
+    r = omega::app::resolveSession(local, globals, omega, 4242,
+                                   QStringLiteral("lab-default"));
+    ok(r.config.credential.isEmpty() && r.config.vaultHandle == 0,
+       "a local session takes no default credential");
+    omega.ssh_default_auth = savedAuth;
+
+    bool known = false;
+    ok(omega::sessions::transportFromName("local", &known) == SessionTransport::Local &&
+           known,
+       "\"local\" names the local transport");
+    ok(std::string(omega::sessions::transportName(SessionTransport::Local)) == "local",
+       "and is written back as \"local\"");
 
     // --- the credential pairing -------------------------------------------
     Session cred = bare;

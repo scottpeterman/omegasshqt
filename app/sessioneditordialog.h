@@ -111,6 +111,7 @@ private:
     void populateFolders();
     void refreshSerialPorts();
     QString currentSerialName() const;
+    QString currentShellLine() const;
     void onTransportChanged(int index);
     void onKeystrokeChanged();
     void loadFrom(const sessions::Session &session);
@@ -174,6 +175,10 @@ private:
     // serial page
     QComboBox *serialPort_ = nullptr;
     QComboBox *baud_ = nullptr;
+
+    // local page
+    QComboBox *localShell_ = nullptr;
+    QLineEdit *localDir_ = nullptr;
 
     // --- terminal ---------------------------------------------------------
     QLineEdit *term_ = nullptr;

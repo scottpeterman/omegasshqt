@@ -100,6 +100,11 @@ private:
     QComboBox *serialPort_ = nullptr;
     QComboBox *baud_ = nullptr;
 
+    // Local shell page. Editable, pre-filled with the shells this machine has;
+    // whatever is typed is used as-is, so an unlisted shell needs no option.
+    QComboBox *localShell_ = nullptr;
+    QLineEdit *localDir_ = nullptr;
+
     mutable omegassh::Config config_;
 };
 

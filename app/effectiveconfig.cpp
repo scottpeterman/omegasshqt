@@ -118,6 +118,11 @@ Resolved resolveSession(const sessions::Session &session,
         case sessions::SessionTransport::Serial:
             cfg.transport = omegassh::Transport::Serial;
             break;
+        case sessions::SessionTransport::Local:
+            cfg.transport = omegassh::Transport::Local;
+            if (session.local_command) cfg.localCommand = toQ(*session.local_command);
+            if (session.local_dir) cfg.localDirectory = toQ(*session.local_dir);
+            break;
         case sessions::SessionTransport::Ssh:
             cfg.transport = omegassh::Transport::Ssh;
             break;
