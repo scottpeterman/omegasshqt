@@ -33,6 +33,12 @@ REM
 REM Options:
 REM   --zip              also write dist\omega-windows-x64.zip
 REM   --build-dir <dir>  default build-win
+REM   --ghostty <prefix> use the libghostty-vt terminal core instead of pyte.
+REM                      <prefix> is a libghostty-vt install (zig build
+REM                      -Demit-lib-vt --prefix <prefix>; see
+REM                      scripts\build-ghostty-vt.bat). Also taken from
+REM                      %%OMEGA_GHOSTTY_PREFIX%%. ghostty-vt.dll is copied
+REM                      beside omega.exe, so the zip and the MSIX carry it.
 REM   --help
 REM
 REM WHAT windeployqt DOES: copies the Qt DLLs beside the exe, and the plugins
@@ -53,6 +59,7 @@ set "QTPREFIX="
 set "MAKEZIP=0"
 set "BUILD_DIR=build-win"
 set "STAGE=dist\omega"
+set "GHOSTTY=%OMEGA_GHOSTTY_PREFIX%"
 
 REM --- options ---------------------------------------------------------------
 
@@ -66,6 +73,10 @@ if /i "%~1"=="--anytermqt" (
 if /i "%~1"=="--qt" (
     if "%~2"=="" (echo error: --qt needs a path 1>&2 & goto fail)
     set "QTPREFIX=%~f2" & shift & shift & goto parse
+)
+if /i "%~1"=="--ghostty" (
+    if "%~2"=="" (echo error: --ghostty needs a libghostty-vt prefix 1>&2 & goto fail)
+    set "GHOSTTY=%~f2" & shift & shift & goto parse
 )
 if /i "%~1"=="--build-dir" (
     if "%~2"=="" (echo error: --build-dir needs a path 1>&2 & goto fail)
@@ -182,8 +193,40 @@ if errorlevel 1 (
 
 REM --- what it settled on ----------------------------------------------------
 
+REM --- terminal core -----------------------------------------------------------
+REM
+REM pyte unless --ghostty. The backend option is always passed, so an existing
+REM build directory switches cleanly in either direction instead of keeping
+REM whichever core it was first configured with.
+REM
+REM AN anytermqt WITHOUT THE BACKEND INTERFACE IS REFUSED for ghostty, not
+REM ignored: CMake would warn that QTPYTE_VT_BACKEND was unused, build pyte,
+REM and the package would look like a ghostty build to everyone downstream.
+set "VTBACKEND=pyte"
+set "PREFIXPATH=%QTPREFIX%"
+if "%GHOSTTY%"=="" goto vt_done
+if not exist "%ANYTERMQT%\qtpyte\src\vtbackend_ghostty.cpp" (
+    echo error: --ghostty given, but anytermqt at %ANYTERMQT% has no ghostty 1>&2
+    echo        backend ^(qtpyte\src\vtbackend_ghostty.cpp^). Use a checkout with
+    echo        the VtBackend change, or drop --ghostty.
+    goto fail
+)
+if not exist "%GHOSTTY%\bin\ghostty-vt.dll" (
+    echo error: no bin\ghostty-vt.dll under %GHOSTTY% 1>&2
+    echo        Build it with scripts\build-ghostty-vt.bat --prefix %GHOSTTY%
+    goto fail
+)
+if not exist "%GHOSTTY%\lib\cmake\ghostty-vt\ghostty-vt-config.cmake" (
+    echo error: %GHOSTTY% has no lib\cmake\ghostty-vt package config 1>&2
+    goto fail
+)
+set "VTBACKEND=ghostty"
+set "PREFIXPATH=%QTPREFIX%;%GHOSTTY%"
+:vt_done
+
 echo ==^> anytermqt  %ANYTERMQT%
 echo ==^> Qt         %QTPREFIX%
+echo ==^> core       %VTBACKEND% %GHOSTTY%
 echo ==^> build dir  %BUILD_DIR%
 
 REM --- build -----------------------------------------------------------------
@@ -213,7 +256,8 @@ if exist "%BUILD_DIR%\CMakeCache.txt" (
 
 echo ==^> building
 cmake -S . -B "%BUILD_DIR%" -DOMEGASSH_ANYTERMQT_DIR="%ANYTERMQT%" ^
-      -DCMAKE_PREFIX_PATH="%QTPREFIX%" -DCMAKE_BUILD_TYPE=Release
+      -DCMAKE_PREFIX_PATH="%PREFIXPATH%" -DCMAKE_BUILD_TYPE=Release ^
+      -DQTPYTE_VT_BACKEND=%VTBACKEND%
 if errorlevel 1 goto fail
 
 cmake --build "%BUILD_DIR%" --config Release --target omega
@@ -311,6 +355,14 @@ REM asks for elevation inside a folder that is meant to be unzip-and-run is the
 REM wrong signal to whoever receives it, and the MSIX cannot execute it at all.
 if exist "%STAGE%\vc_redist.x64.exe" del /q "%STAGE%\vc_redist.x64.exe"
 
+REM windeployqt deploys Qt and nothing else, so the terminal core's DLL is
+REM copied here. It goes beside omega.exe, where the loader looks first.
+if "%VTBACKEND%"=="ghostty" (
+    echo ==^> copying ghostty-vt.dll
+    copy /y "%GHOSTTY%\bin\ghostty-vt.dll" "%STAGE%\" >nul
+    if errorlevel 1 goto fail
+)
+
 REM --- verify ----------------------------------------------------------------
 REM
 REM The platform plugin is the one whose absence is fatal and whose error
@@ -356,8 +408,22 @@ if errorlevel 1 (
     echo     Delete %BUILD_DIR% and run this again.
     goto fail
 )
+REM The core: present when ghostty, and actually imported by omega.exe -- a
+REM DLL that is present but not linked means CMake quietly built pyte.
+if "%VTBACKEND%"=="ghostty" (
+    if not exist "%STAGE%\ghostty-vt.dll" (
+        echo error: ghostty-vt.dll missing; the package would not start 1>&2
+        goto fail
+    )
+    dumpbin /dependents "%STAGE%\omega.exe" | findstr /i "ghostty-vt.dll" >nul
+    if errorlevel 1 (
+        echo error: omega.exe does not import ghostty-vt.dll -- it was built 1>&2
+        echo        with pyte. Delete %BUILD_DIR% and run this again.
+        goto fail
+    )
+)
 echo ==^> platform plugin, Qt DLLs, MSVC runtime and themes present,
-echo     one Qt throughout
+echo     one Qt throughout, terminal core %VTBACKEND%
 
 REM --- zip -------------------------------------------------------------------
 

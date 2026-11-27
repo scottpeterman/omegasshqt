@@ -28,6 +28,7 @@ cd "${ROOT}"
 
 ANYTERMQT="${OMEGASSH_ANYTERMQT_DIR:-}"
 BUILD_DIR="build-linux"
+GHOSTTY="${OMEGA_GHOSTTY_PREFIX:-}"
 KEEP_APPDIR=0
 LD_DIR="${LINUXDEPLOY_DIR:-}"
 
@@ -36,6 +37,7 @@ while [[ $# -gt 0 ]]; do
         --anytermqt) ANYTERMQT="$2"; shift 2 ;;
         --anytermqt=*) ANYTERMQT="${1#*=}"; shift ;;
         --build-dir) BUILD_DIR="$2"; shift 2 ;;
+        --ghostty) GHOSTTY="$2"; shift 2 ;;
         --keep-appdir) KEEP_APPDIR=1; shift ;;
         -h|--help) sed -n '3,12p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'; exit 0 ;;
         *) echo "unknown option: $1" >&2; exit 2 ;;
@@ -58,6 +60,27 @@ fi
 # an error naming a class in THIS repo for a method that lives in the other one.
 grep -q alternateScreen "${ANYTERMQT}/qtpyte/include/qtpyte/terminalwidget.h" \
     || die "anytermqt at ${ANYTERMQT} is out of date (no alternateScreen); git pull it"
+
+
+# --- terminal core -----------------------------------------------------------
+#
+# pyte unless --ghostty <prefix> (or OMEGA_GHOSTTY_PREFIX): a libghostty-vt
+# install from scripts/build-ghostty-vt.sh. The backend option is always
+# passed so an existing build directory switches cleanly either way. An
+# anytermqt without the backend interface is refused rather than ignored:
+# CMake would build pyte and only warn that the option went unused.
+VT_BACKEND="pyte"
+PREFIX_PATH="${CMAKE_PREFIX_PATH:-}"
+if [[ -n "${GHOSTTY}" ]]; then
+    [[ -f "${ANYTERMQT}/qtpyte/src/vtbackend_ghostty.cpp" ]] \
+        || die "--ghostty given, but anytermqt at ${ANYTERMQT} has no ghostty backend"
+    [[ -f "${GHOSTTY}/lib/cmake/ghostty-vt/ghostty-vt-config.cmake" ]] \
+        || die "no libghostty-vt install at ${GHOSTTY} (scripts/build-ghostty-vt.sh --prefix ${GHOSTTY})"
+    GHOSTTY="$(cd "${GHOSTTY}" && pwd)"
+    VT_BACKEND="ghostty"
+    PREFIX_PATH="${GHOSTTY}${PREFIX_PATH:+;${PREFIX_PATH}}"
+fi
+say "terminal core: ${VT_BACKEND}${GHOSTTY:+ (${GHOSTTY})}"
 
 VERSION="$(sed -n 's/^project(omegassh VERSION \([0-9.]*\).*/\1/p' CMakeLists.txt)"
 [[ -n "${VERSION}" ]] || die "could not read the version out of CMakeLists.txt"
@@ -107,11 +130,20 @@ say "Qt via ${QMAKE}"
 say "building ${VERSION}"
 cmake -S . -B "${BUILD_DIR}" \
       -DOMEGASSH_ANYTERMQT_DIR="${ANYTERMQT}" \
+      -DQTPYTE_VT_BACKEND="${VT_BACKEND}" \
+      ${PREFIX_PATH:+-DCMAKE_PREFIX_PATH="${PREFIX_PATH}"} \
       -DCMAKE_BUILD_TYPE=Release >/dev/null
 cmake --build "${BUILD_DIR}" --target omega -j"$(nproc)"
 
 BIN="${BUILD_DIR}/app/omega"
 [[ -x "${BIN}" ]] || die "no ${BIN} after the build"
+if [[ "${VT_BACKEND}" == "ghostty" ]]; then
+    # linuxdeploy follows the binary's own dependencies, so linking is what
+    # puts the library in the AppImage. Linked but unresolved fails here
+    # rather than inside linuxdeploy.
+    ldd "${BIN}" | grep -q 'libghostty-vt.so.*=> /' \
+        || die "omega does not link a resolvable libghostty-vt; delete ${BUILD_DIR} and rerun"
+fi
 
 # --- AppDir ----------------------------------------------------------------
 
@@ -159,7 +191,12 @@ say "verifying"
 THEMES="$(ls squashfs-root/usr/Resources/themes 2>/dev/null | wc -l)"
 PLUGIN="squashfs-root/usr/plugins/platforms/libqxcb.so"
 [[ -f "${PLUGIN}" ]] || PLUGIN="$(find squashfs-root -name libqxcb.so | head -1)"
+CORE_LIB="$(find squashfs-root/usr/lib -name 'libghostty-vt.so*' 2>/dev/null | head -1)"
 rm -rf squashfs-root
+if [[ "${VT_BACKEND}" == "ghostty" ]]; then
+    [[ -n "${CORE_LIB}" ]] || die "libghostty-vt is not inside the AppImage; it would not start"
+    say "libghostty-vt is inside"
+fi
 
 [[ "${THEMES}" -ge 10 ]] || die "only ${THEMES} themes inside the AppImage"
 [[ -n "${PLUGIN}" ]] || die "no xcb platform plugin inside the AppImage; it would not start"

@@ -187,6 +187,42 @@ Qt                    aqtinstall, e.g. 6.10.3 win64_msvc2022_64 --archives qtbas
 
 cgo's runtime needs `ws2_32`, `winmm`, `ntdll` and `bcrypt`; CMake adds them.
 
+## Terminal core: pyte or libghostty-vt
+
+The emulator under the terminal widget is anytermqt's choice, made at
+configure time with `QTPYTE_VT_BACKEND`: `pyte` (the default, built in) or
+`ghostty` ([libghostty-vt](https://github.com/ghostty-org/ghostty), a shared
+library). It needs an anytermqt with the VtBackend interface; older ones have
+no such option.
+
+libghostty-vt is built with Zig, both pinned in `scripts/build-ghostty-vt.*`
+(Ghostty tag `vt-1.0.2`, Zig `0.17.1`):
+
+```bash
+scripts/build-ghostty-vt.sh --prefix ~/ghostty-vt
+scripts/bundle-appimage.sh --ghostty ~/ghostty-vt          # or bundle-mac.sh
+```
+
+```
+scripts\build-ghostty-vt.bat --prefix C:\tools\ghostty-vt
+scripts\bundle-windows.bat --ghostty C:\tools\ghostty-vt --zip
+```
+
+`OMEGA_GHOSTTY_PREFIX` works in place of `--ghostty`. The bundle scripts put
+the library inside the package (`ghostty-vt.dll` beside `omega.exe`,
+`usr/lib` in the AppImage, `Contents/Frameworks` on macOS), and fail if the
+anytermqt checkout has no ghostty backend or the built binary does not link
+the library -- either of which would otherwise produce a pyte build that
+looks like a ghostty one.
+
+By hand, pass both to CMake:
+`-DQTPYTE_VT_BACKEND=ghostty -DCMAKE_PREFIX_PATH="<qt>;<ghostty prefix>"`.
+
+The Windows library is built for `x86_64-windows-gnu`, which is what Ghostty's
+own CI ships to MSVC consumers: a plain C ABI DLL importing only kernel32,
+ntdll and the UCRT. In CI, `VT_BACKEND` in `.github/workflows/release.yml`
+picks the core for tag builds, and a manual run can choose either.
+
 ## Cross-compiling
 
 The Go archive cross-compiles cleanly with a matching C cross-compiler:

@@ -18,6 +18,14 @@
 #
 # anytermqt is checked out at OMEGASSH_ANYTERMQT_REF from CMakeLists.txt, so a
 # release is always built against the widget it is pinned to.
+#
+# TERMINAL CORE. VT_BACKEND below picks it for tag builds: pyte, or ghostty
+# (libghostty-vt). A manual run can override it from the Run workflow form.
+# For ghostty each platform builds libghostty-vt with scripts/build-ghostty-vt.*
+# -- which pin the Ghostty tag and the Zig version -- and caches the result
+# keyed on those two scripts, so a pin bump rebuilds and nothing else does.
+# The bundle scripts then refuse an anytermqt without the backend, ship the
+# library inside the package, and fail if the binary does not link it.
 
 name: release
 
@@ -25,6 +33,12 @@ on:
   push:
     tags: ["v*"]
   workflow_dispatch:
+    inputs:
+      vt_backend:
+        description: "Terminal core"
+        type: choice
+        options: [pyte, ghostty]
+        default: pyte
 
 permissions:
   contents: read
@@ -33,6 +47,11 @@ env:
   # Same Qt as the hand builds (docs/WINDOWS.md). One number for all three.
   QT_VERSION: "6.10.3"
   GO_VERSION: "1.23"
+  # Terminal core for tag builds. A manual run uses its own input instead.
+  VT_BACKEND: "pyte"
+  # Must equal ZIG_VERSION in scripts/build-ghostty-vt.*, which refuse any
+  # other -- so a mismatch fails the build instead of producing a different one.
+  ZIG_VERSION: "0.17.1"
 
 jobs:
   meta:
@@ -40,6 +59,7 @@ jobs:
     outputs:
       version: ${{ steps.v.outputs.version }}
       anytermqt_ref: ${{ steps.v.outputs.anytermqt_ref }}
+      vt_backend: ${{ steps.v.outputs.vt_backend }}
     steps:
       - uses: actions/checkout@v4
       - id: v
@@ -54,9 +74,12 @@ jobs:
             echo "::error::tag ${GITHUB_REF_NAME} does not match CMakeLists.txt version ${version}"
             exit 1
           fi
+          backend="${{ inputs.vt_backend || env.VT_BACKEND }}"
+          [[ "$backend" == "pyte" || "$backend" == "ghostty" ]] || { echo "::error::unknown terminal core: $backend"; exit 1; }
           echo "version=${version}" >> "$GITHUB_OUTPUT"
           echo "anytermqt_ref=${ref}" >> "$GITHUB_OUTPUT"
-          echo "omega ${version}, anytermqt ${ref}"
+          echo "vt_backend=${backend}" >> "$GITHUB_OUTPUT"
+          echo "omega ${version}, anytermqt ${ref}, terminal core ${backend}"
 
   linux:
     needs: meta
@@ -80,6 +103,30 @@ jobs:
           cache: true
       - name: System packages
         run: sudo apt-get update && sudo apt-get install -y ninja-build libgl1-mesa-dev libegl1 libxkbcommon-x11-0 libxcb-cursor0 libxcb-icccm4 libxcb-image0 libxcb-keysyms1 libxcb-randr0 libxcb-render-util0 libxcb-shape0 libxcb-xinerama0 libxcb-xkb1 libfontconfig1 libdbus-1-3 xvfb
+      # --- libghostty-vt, ghostty builds only -------------------------------
+      - name: Cache libghostty-vt
+        if: needs.meta.outputs.vt_backend == 'ghostty'
+        id: gvt
+        uses: actions/cache@v4
+        with:
+          path: ${{ runner.temp }}/ghostty-vt
+          key: ghostty-vt-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('scripts/build-ghostty-vt.sh') }}
+      - name: Build libghostty-vt
+        if: needs.meta.outputs.vt_backend == 'ghostty' && steps.gvt.outputs.cache-hit != 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          # Zig from ziglang.org, verified against the checksum it publishes.
+          key="x86_64-linux"
+          read -r url sha < <(curl -fsSL https://ziglang.org/download/index.json | jq -r --arg v "$ZIG_VERSION" --arg k "$key" '.[$v][$k] | "\(.tarball) \(.shasum)"')
+          curl -fsSL "$url" -o "$RUNNER_TEMP/zig.tar.xz"
+          echo "$sha  $RUNNER_TEMP/zig.tar.xz" | shasum -a 256 -c -
+          mkdir -p "$RUNNER_TEMP/zig" && tar -xJf "$RUNNER_TEMP/zig.tar.xz" -C "$RUNNER_TEMP/zig" --strip-components=1
+          bash scripts/build-ghostty-vt.sh --prefix "$RUNNER_TEMP/ghostty-vt" --zig "$RUNNER_TEMP/zig/zig"
+      - name: Use libghostty-vt
+        if: needs.meta.outputs.vt_backend == 'ghostty'
+        shell: bash
+        run: echo "OMEGA_GHOSTTY_PREFIX=$RUNNER_TEMP/ghostty-vt" >> "$GITHUB_ENV"
       - name: Build AppImage
         env:
           QMAKE: ${{ env.QT_ROOT_DIR }}/bin/qmake
@@ -134,6 +181,32 @@ jobs:
           gcc --version
           go version
           cl 2>&1 | findstr Version
+      # --- libghostty-vt, ghostty builds only -------------------------------
+      - name: Cache libghostty-vt
+        if: needs.meta.outputs.vt_backend == 'ghostty'
+        id: gvt
+        uses: actions/cache@v4
+        with:
+          path: ${{ runner.temp }}\ghostty-vt
+          key: ghostty-vt-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('scripts/build-ghostty-vt.bat') }}
+      - name: Build libghostty-vt
+        if: needs.meta.outputs.vt_backend == 'ghostty' && steps.gvt.outputs.cache-hit != 'true'
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          # Zig from ziglang.org, verified against the checksum it publishes.
+          $rel = (Invoke-RestMethod https://ziglang.org/download/index.json).$env:ZIG_VERSION.'x86_64-windows'
+          $zip = Join-Path $env:RUNNER_TEMP 'zig.zip'
+          Invoke-WebRequest $rel.tarball -OutFile $zip
+          if ((Get-FileHash $zip -Algorithm SHA256).Hash -ne $rel.shasum.ToUpper()) { throw 'zig checksum mismatch' }
+          Expand-Archive $zip -DestinationPath $env:RUNNER_TEMP
+          $zig = (Get-ChildItem $env:RUNNER_TEMP -Directory -Filter "zig-x86_64-windows-$env:ZIG_VERSION").FullName
+          cmd /c "scripts\build-ghostty-vt.bat --prefix `"$env:RUNNER_TEMP\ghostty-vt`" --zig `"$zig\zig.exe`""
+          if ($LASTEXITCODE -ne 0) { throw 'build-ghostty-vt.bat failed' }
+      - name: Use libghostty-vt
+        if: needs.meta.outputs.vt_backend == 'ghostty'
+        shell: pwsh
+        run: Add-Content $env:GITHUB_ENV "OMEGA_GHOSTTY_PREFIX=$env:RUNNER_TEMP\ghostty-vt"
       - name: Build zip
         shell: cmd
         run: call scripts\bundle-windows.bat --anytermqt "%GITHUB_WORKSPACE%\anytermqt" --qt "%QT_ROOT_DIR%" --zip
@@ -180,6 +253,30 @@ jobs:
         with:
           version: ${{ env.QT_VERSION }}
           cache: true
+      # --- libghostty-vt, ghostty builds only -------------------------------
+      - name: Cache libghostty-vt
+        if: needs.meta.outputs.vt_backend == 'ghostty'
+        id: gvt
+        uses: actions/cache@v4
+        with:
+          path: ${{ runner.temp }}/ghostty-vt
+          key: ghostty-vt-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('scripts/build-ghostty-vt.sh') }}
+      - name: Build libghostty-vt
+        if: needs.meta.outputs.vt_backend == 'ghostty' && steps.gvt.outputs.cache-hit != 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          # Zig from ziglang.org, verified against the checksum it publishes.
+          key="aarch64-macos"
+          read -r url sha < <(curl -fsSL https://ziglang.org/download/index.json | jq -r --arg v "$ZIG_VERSION" --arg k "$key" '.[$v][$k] | "\(.tarball) \(.shasum)"')
+          curl -fsSL "$url" -o "$RUNNER_TEMP/zig.tar.xz"
+          echo "$sha  $RUNNER_TEMP/zig.tar.xz" | shasum -a 256 -c -
+          mkdir -p "$RUNNER_TEMP/zig" && tar -xJf "$RUNNER_TEMP/zig.tar.xz" -C "$RUNNER_TEMP/zig" --strip-components=1
+          bash scripts/build-ghostty-vt.sh --prefix "$RUNNER_TEMP/ghostty-vt" --zig "$RUNNER_TEMP/zig/zig"
+      - name: Use libghostty-vt
+        if: needs.meta.outputs.vt_backend == 'ghostty'
+        shell: bash
+        run: echo "OMEGA_GHOSTTY_PREFIX=$RUNNER_TEMP/ghostty-vt" >> "$GITHUB_ENV"
       - name: Build dmg
         env:
           CMAKE_PREFIX_PATH: ${{ env.QT_ROOT_DIR }}

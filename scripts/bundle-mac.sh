@@ -35,6 +35,7 @@ ANYTERMQT="${OMEGASSH_ANYTERMQT_DIR:-}"
 BUILD_DIR="build-mac"
 SIGN_ID=""
 MAKE_DMG=0
+GHOSTTY="${OMEGA_GHOSTTY_PREFIX:-}"
 
 while [[ $# -gt 0 ]]; do
     case "$1" in
@@ -43,6 +44,7 @@ while [[ $# -gt 0 ]]; do
         --sign) SIGN_ID="$2"; shift 2 ;;
         --dmg) MAKE_DMG=1; shift ;;
         --build-dir) BUILD_DIR="$2"; shift 2 ;;
+        --ghostty) GHOSTTY="$2"; shift 2 ;;
         -h|--help) sed -n '3,12p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'; exit 0 ;;
         *) echo "unknown option: $1" >&2; exit 2 ;;
     esac
@@ -54,6 +56,27 @@ say() { echo "==> $*"; }
 [[ "$(uname -s)" == "Darwin" ]] || die "this one is macOS only; see bundle-linux.sh"
 [[ -n "${ANYTERMQT}" ]] || die "no anytermqt path (--anytermqt <path> or OMEGASSH_ANYTERMQT_DIR)"
 [[ -f "${ANYTERMQT}/qtpyte/CMakeLists.txt" ]] || die "not an anytermqt checkout: ${ANYTERMQT}"
+
+
+# --- terminal core -----------------------------------------------------------
+#
+# pyte unless --ghostty <prefix> (or OMEGA_GHOSTTY_PREFIX): a libghostty-vt
+# install from scripts/build-ghostty-vt.sh. The backend option is always
+# passed so an existing build directory switches cleanly either way. An
+# anytermqt without the backend interface is refused rather than ignored:
+# CMake would build pyte and only warn that the option went unused.
+VT_BACKEND="pyte"
+PREFIX_PATH="${CMAKE_PREFIX_PATH:-}"
+if [[ -n "${GHOSTTY}" ]]; then
+    [[ -f "${ANYTERMQT}/qtpyte/src/vtbackend_ghostty.cpp" ]] \
+        || die "--ghostty given, but anytermqt at ${ANYTERMQT} has no ghostty backend"
+    [[ -f "${GHOSTTY}/lib/cmake/ghostty-vt/ghostty-vt-config.cmake" ]] \
+        || die "no libghostty-vt install at ${GHOSTTY} (scripts/build-ghostty-vt.sh --prefix ${GHOSTTY})"
+    GHOSTTY="$(cd "${GHOSTTY}" && pwd)"
+    VT_BACKEND="ghostty"
+    PREFIX_PATH="${GHOSTTY}${PREFIX_PATH:+;${PREFIX_PATH}}"
+fi
+say "terminal core: ${VT_BACKEND}${GHOSTTY:+ (${GHOSTTY})}"
 
 VERSION="$(sed -n 's/^project(omegassh VERSION \([0-9.]*\).*/\1/p' CMakeLists.txt)"
 [[ -n "${VERSION}" ]] || die "could not read the version out of CMakeLists.txt"
@@ -73,6 +96,8 @@ say "building ${VERSION} into ${BUILD_DIR}"
 cmake -S . -B "${BUILD_DIR}" \
       -DOMEGA_MACOS_BUNDLE=ON \
       -DOMEGASSH_ANYTERMQT_DIR="${ANYTERMQT}" \
+      -DQTPYTE_VT_BACKEND="${VT_BACKEND}" \
+      ${PREFIX_PATH:+-DCMAKE_PREFIX_PATH="${PREFIX_PATH}"} \
       -DCMAKE_BUILD_TYPE=Release \
       -DCMAKE_OSX_ARCHITECTURES=arm64
 # CHECKED HERE, BEFORE THE BUILD, and not after it. The option only exists in
@@ -129,6 +154,31 @@ otool -L "${APP}/Contents/MacOS/Omega" | awk '/QtCore/{print "    linked against
 
 "${MACDEPLOYQT}" "${APP}" -verbose=1
 
+# The terminal core, before the absolute rpaths are stripped below: the
+# library is linked as @rpath/libghostty-vt.*.dylib and found through the
+# build's rpath to the prefix until then. macdeployqt copies non-Qt dylibs it
+# can resolve, but that is not something to rely on silently, so: if it is not
+# in Contents/Frameworks yet, copy it there, give it an @rpath id, and point
+# the executable's reference at that. The @executable_path/../Frameworks rpath
+# added below then finds it.
+if [[ "${VT_BACKEND}" == "ghostty" ]]; then
+    EXE="${APP}/Contents/MacOS/Omega"
+    REF="$(otool -L "${EXE}" | awk '/libghostty-vt/{print $1; exit}')"
+    [[ -n "${REF}" ]] || die "Omega does not link libghostty-vt -- it was built with pyte; delete ${BUILD_DIR}"
+    NAME="$(basename "${REF}")"
+    if [[ ! -e "${APP}/Contents/Frameworks/${NAME}" ]]; then
+        SRC_LIB="${GHOSTTY}/lib/${NAME}"
+        [[ -e "${SRC_LIB}" ]] || die "no ${SRC_LIB} to bundle"
+        say "bundling ${NAME}"
+        mkdir -p "${APP}/Contents/Frameworks"
+        cp -L "${SRC_LIB}" "${APP}/Contents/Frameworks/${NAME}"
+        chmod u+w "${APP}/Contents/Frameworks/${NAME}"
+        install_name_tool -id "@rpath/${NAME}" "${APP}/Contents/Frameworks/${NAME}"
+    fi
+    [[ "${REF}" == "@rpath/${NAME}" ]] || install_name_tool -change "${REF}" "@rpath/${NAME}" "${EXE}"
+    say "terminal core: ${NAME} in Contents/Frameworks"
+fi
+
 # --- 4. verify -------------------------------------------------------------
 #
 # The failure this packaging has is a framework that did not get its install
@@ -168,7 +218,7 @@ while read -r ref; do
             ;;
         *) STRAY+="${ref}"$'\n' ;;
     esac
-done < <(otool -L "${BIN}" | awk '/Qt/{print $1}')
+done < <(otool -L "${BIN}" | awk '/Qt|libghostty-vt/{print $1}')
 if [[ -n "${STRAY}" ]]; then
     printf '%s' "${STRAY}" >&2
     die "Qt libraries above still resolve outside the bundle"

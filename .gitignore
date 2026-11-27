@@ -50,3 +50,6 @@
 # linuxdeploy tools fetched by scripts/bundle-appimage.sh, and its AppDir
 /.linuxdeploy/
 /AppDir/
+
+# libghostty-vt source checkout made by scripts/build-ghostty-vt.*
+/.ghostty-src/
