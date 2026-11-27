@@ -155,6 +155,17 @@ bool TabSession::startLocal(const omegassh::Config &config) {
     // CreateProcessW is given none). So the current directory is moved for
     // the length of the call and put back. start() is synchronous and this is
     // the GUI thread, so nothing else can observe the change.
+    // QTPYTE_PTY_DEBUG=1: what Omega resolved, ahead of what the pty layer
+    // spawned. Both land in the terminal, dim.
+    if (qEnvironmentVariableIntValue("QTPYTE_PTY_DEBUG") != 0) {
+        const QString line =
+            QStringLiteral("[omega] session '%1' -> program %2 args [%3] dir %4")
+                .arg(config.localCommand, shell.program,
+                     shell.args.join(QStringLiteral(", ")), dir);
+        emit dataReceived(QByteArrayLiteral("\x1b[2m") + line.toUtf8() +
+                          QByteArrayLiteral("\x1b[0m\r\n"));
+    }
+
     const QString previous = QDir::currentPath();
     QDir::setCurrent(dir);
     localFinishedEmitted_ = false;
