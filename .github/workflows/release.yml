@@ -236,8 +236,10 @@ jobs:
 
   macos:
     needs: meta
-    # Apple silicon. bundle-mac.sh builds arm64 only.
-    runs-on: macos-14
+    # Apple silicon. bundle-mac.sh builds arm64 only. macos-14 was retired on
+    # 2026-11-02 and now fails to schedule ("configuration not supported");
+    # macos-15 is arm64 and supported until fall 2027.
+    runs-on: macos-15
     steps:
       - uses: actions/checkout@v4
       - uses: actions/checkout@v4
