@@ -179,6 +179,10 @@ TerminalTab::TerminalTab(QWidget *parent) : QWidget(parent) {
             &TerminalTab::showContextMenu);
     connect(terminal_, &TerminalView::pasteRequested, this,
             &TerminalTab::paste);
+    // Ctrl+= / Ctrl+- step the same per-tab zoom as Ctrl+wheel; Ctrl+0
+    // resets it (eventFilter). Same clamp, same "relative to the base" rule.
+    connect(terminal_, &TerminalView::zoomRequested, this,
+            &TerminalTab::zoomBy);
     stack->addWidget(terminal_, 0, 0);
 
     // Centred rather than filling the cell. A full-bleed overlay hides the

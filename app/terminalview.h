@@ -72,12 +72,33 @@ Q_SIGNALS:
     // to the far end yet.
     void pasteRequested();
 
+    // Ctrl+= / Ctrl++ (+1) or Ctrl+- (-1), main row or keypad. The host owns
+    // the zoom, so it is asked rather than told.
+    void zoomRequested(int steps);
+
+public:
+    // +1, -1, or 0 when the event is not a zoom chord. Shift is ignored so
+    // Ctrl+Shift+= (Key_Plus on a US layout) and Ctrl+= both zoom in; Alt
+    // and Meta are not, so those chords still reach the far end.
+    static int zoomStep(const QKeyEvent *event);
+
 protected:
     // Refusing the move is what makes QWidget::event() fall through to
     // keyPressEvent(), which is where the keymap lives.
     bool focusNextPrevChild(bool next) override;
 
-    // Where Ctrl+Shift+V is taken before the base class can act on it.
+    // --- ShortcutOverride ----------------------------------------------------
+    //
+    // Qt offers a key to the window's shortcut map before keyPressEvent, and
+    // Edit > Credential Manager is bound to Ctrl+Shift+C. Without this the
+    // menu action took the chord whenever the terminal had focus and the
+    // widget's copy never ran. Accepting the override here keeps Ctrl+Shift+C
+    // (and V, and the zoom chords) with the terminal while it is focused; the
+    // menu shortcut still works from the session tree and everywhere else.
+    bool event(QEvent *event) override;
+
+    // Where Ctrl+Shift+C/V and the zoom chords are taken before the base
+    // class can act on them.
     void keyPressEvent(QKeyEvent *event) override;
 };
 

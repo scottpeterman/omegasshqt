@@ -8,6 +8,7 @@
 #include <QPixmap>
 #include <QPointer>
 #include <QPushButton>
+#include <QStringList>
 #include <QTabWidget>
 #include <QTextBrowser>
 #include <QVBoxLayout>
@@ -15,6 +16,14 @@
 #include "app/dialogbuttons.h"
 
 #include <qtpyte/vtbackend.h>
+
+#ifdef OMEGA_HAVE_GHOSTTY_VT
+#include <ghostty/vt.h>
+#endif
+
+#ifndef OMEGA_ANYTERMQT_VERSION
+#define OMEGA_ANYTERMQT_VERSION "unknown"
+#endif
 
 #ifndef OMEGA_VERSION
 // Only reachable in a build that did not define it -- a probe target linking
@@ -251,13 +260,59 @@ QString omegaVersion() { return QStringLiteral(OMEGA_VERSION); }
 // rather than recorded at configure time here: anytermqt picks it, and a
 // second copy of that decision is one that can disagree. A throwaway 1x1
 // backend is cheap, and the About box is opened by hand.
+//
+// The name says which core; the build info says which build of it. For
+// ghostty that is the library's own answer -- the version, optimize mode and
+// SIMD of the libghostty-vt actually loaded, which on a packaged build is the
+// copy inside the package. pyte is anytermqt's C++ port and has no version of
+// its own: anytermqt's version, shown beside it, is the pyte build.
+namespace {
+
+#ifdef OMEGA_HAVE_GHOSTTY_VT
+QString ghosttyBuildInfo() {
+    QStringList parts;
+
+    GhosttyOptimizeMode mode = GHOSTTY_OPTIMIZE_DEBUG;
+    if (ghostty_build_info(GHOSTTY_BUILD_INFO_OPTIMIZE, &mode) == GHOSTTY_SUCCESS) {
+        switch (mode) {
+            case GHOSTTY_OPTIMIZE_DEBUG: parts << QStringLiteral("Debug"); break;
+            case GHOSTTY_OPTIMIZE_RELEASE_SAFE: parts << QStringLiteral("ReleaseSafe"); break;
+            case GHOSTTY_OPTIMIZE_RELEASE_SMALL: parts << QStringLiteral("ReleaseSmall"); break;
+            case GHOSTTY_OPTIMIZE_RELEASE_FAST: parts << QStringLiteral("ReleaseFast"); break;
+            default: break;
+        }
+    }
+    bool simd = false;
+    if (ghostty_build_info(GHOSTTY_BUILD_INFO_SIMD, &simd) == GHOSTTY_SUCCESS) {
+        parts << (simd ? QStringLiteral("SIMD") : QStringLiteral("no SIMD"));
+    }
+
+    QString out = QStringLiteral("libghostty-vt %1")
+                      .arg(QString::fromUtf8(ghostty_version()));
+    if (!parts.isEmpty()) out += QStringLiteral(" (%1)").arg(parts.join(QStringLiteral(", ")));
+    return out;
+}
+#endif
+
+}  // namespace
+
 QString terminalCore() {
     const auto backend = qtpyte::createVtBackend(1, 1, 0);
     const QString name = backend ? QString::fromLatin1(backend->name()) : QString();
-    if (name == QLatin1String("ghostty")) return QStringLiteral("libghostty-vt");
-    if (name == QLatin1String("pyte")) return QStringLiteral("pyte");
+    if (name == QLatin1String("ghostty")) {
+#ifdef OMEGA_HAVE_GHOSTTY_VT
+        return ghosttyBuildInfo();
+#else
+        return QStringLiteral("libghostty-vt");
+#endif
+    }
+    if (name == QLatin1String("pyte")) {
+        return QStringLiteral("pyte (built into anytermqt)");
+    }
     return name.isEmpty() ? QObject::tr("unknown") : name;
 }
+
+QString anytermqtVersion() { return QStringLiteral(OMEGA_ANYTERMQT_VERSION); }
 
 // The licence page.
 //
@@ -365,9 +420,11 @@ QString aboutHtml(const QString &linkColor) {
     // the name before the rename; GitHub redirects that, but the About box
     // should name where the code lives now.
     //
-    // %3 is the terminal core, asked of anytermqt at run time.
+    // %3 is the terminal core and its build, asked at run time; %4 is the
+    // anytermqt the widget came from.
     return QObject::tr(R"(
-<p><b>Version %1</b> &nbsp;&middot;&nbsp; terminal core: %3</p>
+<p><b>Version %1</b></p>
+<p>Terminal core: %3<br>Terminal widget: anytermqt %4</p>
 <p>A terminal for network gear: SSH, telnet, serial and local shells in one
 window, with a session tree and an encrypted credential vault.</p>
 <p>Built on a Go transport core reached through a C ABI, and the anytermqt
@@ -380,7 +437,7 @@ alongside the application.</p>
 <p><a href="https://github.com/scottpeterman/omegasshqt"%2>github.com/scottpeterman/omegasshqt</a></p>
 
 )")
-        .arg(omegaVersion(), style, terminalCore());
+        .arg(omegaVersion(), style, terminalCore(), anytermqtVersion());
 }
 
 AboutDialog::AboutDialog(const QString &linkColor, QWidget *parent)

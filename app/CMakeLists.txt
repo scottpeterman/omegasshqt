@@ -153,13 +153,15 @@ set_target_properties(omega_shell PROPERTIES
 target_compile_definitions(omega_shell PRIVATE
     OMEGA_VERSION="${PROJECT_VERSION}")
 
-# The version the About box reports, from the CMake project version. Defined on
-# the library rather than on the executable because helpdialog.cpp is in the
-# library -- and stated once here rather than as a literal in the source, since
-# a version that has to be edited in two places is one that will disagree with
-# itself.
+# The rest of the About box's build info. anytermqt's version is worked out in
+# the root CMakeLists from the checkout; the ghostty core is asked at run time,
+# which needs its headers here (qtpyte links it PRIVATE).
 target_compile_definitions(omega_shell PRIVATE
-    OMEGA_VERSION="${PROJECT_VERSION}")
+    OMEGA_ANYTERMQT_VERSION="${OMEGASSH_ANYTERMQT_BUILD}")
+if(OMEGASSH_LINK_GHOSTTY)
+    target_link_libraries(omega_shell PRIVATE ghostty-vt::ghostty-vt)
+    target_compile_definitions(omega_shell PRIVATE OMEGA_HAVE_GHOSTTY_VT=1)
+endif()
 
 add_library(omega::shell ALIAS omega_shell)
 

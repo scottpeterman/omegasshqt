@@ -8,7 +8,7 @@
 # alternative if that trade stops being worth it.
 
 cmake_minimum_required(VERSION 3.19)
-project(omegassh VERSION 0.1.8 LANGUAGES C CXX)
+project(omegassh VERSION 0.1.9 LANGUAGES C CXX)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -324,6 +324,33 @@ if(OMEGASSH_ANYTERMQT_DIR AND OMEGASSH_BUILD_QT)
             "OMEGASSH_RELEASE: cannot verify anytermqt version "
             "(git not found or ${OMEGASSH_ANYTERMQT_DIR} is not a git checkout)")
     endif()
+
+    # --- build info for the About box -------------------------------------
+    # anytermqt's version from its own pyproject.toml, which every checkout
+    # has, git or not. A checkout that is not the clean pin also carries its
+    # describe string, so a dev build cannot pass itself off as the release.
+    file(STRINGS "${OMEGASSH_ANYTERMQT_DIR}/pyproject.toml" _atq_ver_line
+         REGEX "^version[ \t]*=" LIMIT_COUNT 1)
+    string(REGEX REPLACE "^version[ \t]*=[ \t]*\"([^\"]*)\".*" "\\1"
+           _atq_version "${_atq_ver_line}")
+    if(NOT _atq_version)
+        set(_atq_version "unknown")
+    endif()
+    set(OMEGASSH_ANYTERMQT_BUILD "${_atq_version}")
+    if(_atq_describe AND NOT _atq_ok)
+        set(OMEGASSH_ANYTERMQT_BUILD "${_atq_version} (${_atq_describe})")
+    endif()
+
+    # The ghostty core: Omega links the same libghostty-vt qtpyte does, so
+    # About can ask it what it is (ghostty_version, ghostty_build_info). qtpyte
+    # links it PRIVATE, which carries the library but not its headers.
+    set(OMEGASSH_LINK_GHOSTTY OFF)
+    if(QTPYTE_VT_BACKEND STREQUAL "ghostty")
+        find_package(ghostty-vt 1.0 CONFIG REQUIRED)
+        set(OMEGASSH_LINK_GHOSTTY ON)
+    endif()
+    message(STATUS "omegassh: About reports anytermqt ${OMEGASSH_ANYTERMQT_BUILD}, "
+                   "terminal core ${QTPYTE_VT_BACKEND}")
 endif()
 
 # The shell: settings, the main window, the terminal tab and the application.
