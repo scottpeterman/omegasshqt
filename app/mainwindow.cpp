@@ -1008,6 +1008,27 @@ void MainWindow::applySettingsToTabs() {
     }
 }
 
+// THE TERMINALS GO FIRST, while the members they report to still exist.
+//
+// Without this, members are destroyed before the QWidget base deletes its
+// children, so every tab still open at exit is destroyed after live_ -- and
+// its destroyed() handler, which detaches it from live_, runs against a
+// registry that is already gone. Undefined behaviour on every quit with a tab
+// open; under a test harness it is a segfault in LiveSessionRegistry::detach.
+// Ending the sessions here also closes them the way closing a tab does.
+MainWindow::~MainWindow() {
+    for (const auto &d : detached_) {
+        if (d) {
+            d->terminate();
+            delete d->window();
+        }
+    }
+    for (TerminalTab *tab : allTabs()) {
+        tab->terminate();
+        delete tab;
+    }
+}
+
 void MainWindow::registerWindow(QWidget *window) {
     if (!window) return;
     for (const auto &w : windows_) {

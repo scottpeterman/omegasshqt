@@ -192,6 +192,49 @@ mv theme/themes theme/themes.hidden; H=$(mktemp -d); (cd /tmp && HOME=$H QT_QPA_
 
 `.github/workflows/release.yml` runs the same smoke test on all three runners.
 
+## 6b. The ghostty core (libghostty-vt)
+
+Releases ship the ghostty core, and mouse reporting exists only there, so
+anything touching the terminal should be run against it, not only against
+pyte. It builds here; it just cannot fetch its own dependencies.
+
+Zig 0.17.1, the version `scripts/build-ghostty-vt.sh` pins, comes from PyPI:
+
+```bash
+python3 -m venv /tmp/zigenv && /tmp/zigenv/bin/pip install -q ziglang==0.17.1
+ZIG=$(ls /tmp/zigenv/lib/python3*/site-packages/ziglang/zig)
+```
+
+**Zig's own package fetch fails through the sandbox proxy** (connection reset
+on `deps.files.ghostty.org`) even though curl reaches the same host. The fix
+is to fetch with curl and unpack each package where Zig 0.17 looks for it:
+`<ghostty-src>/zig-pkg/<hash>/`, a directory inside the checkout, named with
+the hash the manifest declares. NOT the global `~/.cache/zig`, and NOT through
+`zig fetch` of a local file -- that computes a different hash and the build
+then rejects it as a mismatch. Run the build, seed whatever URL it names,
+repeat; vt-1.0.2 needs five (translate_c, uucode, aro, highway, wuffs):
+
+```bash
+seed() { f=/tmp/zigdeps/$(basename $1); mkdir -p /tmp/zigdeps; [ -f $f ] || curl -sSfL -o $f $1; d=/tmp/ghostty-src/zig-pkg/$2; rm -rf $d; mkdir -p $d; tar -xf $f -C $d --strip-components=1; }
+for i in 1 2 3 4 5 6 7 8; do bash scripts/build-ghostty-vt.sh --prefix /tmp/ghostty-vt --src /tmp/ghostty-src --zig $ZIG > /tmp/gvt.log 2>&1 && { echo built; break; }; u=$(grep -oE 'https://[^"]+' /tmp/gvt.log | head -1); [ -z "$u" ] && { tail /tmp/gvt.log; break; }; h=$(grep -rh -A1 "\"$u\"" /tmp/ghostty-src --include=build.zig.zon | grep -oE 'hash = "[^"]+"' | head -1 | cut -d'"' -f2); echo "seeding $h"; seed $u $h; done
+```
+
+A first run may fail with a hash-mismatch error naming the manifest's hash
+instead of a URL; seed that package the same way (its URL is beside the hash
+in `build.zig.zon`). Then configure a second build tree against it, keeping
+`build/` as the pyte tree:
+
+```bash
+cmake -S . -B build-g -DOMEGASSH_ANYTERMQT_DIR=/absolute/path/to/anytermqt -DCMAKE_BUILD_TYPE=Release -DQTPYTE_VT_BACKEND=ghostty -DCMAKE_PREFIX_PATH=/tmp/ghostty-vt
+cmake --build build-g -j$(nproc)
+ldd build-g/app/omega | grep ghostty     # must list libghostty-vt.so.1
+```
+
+Real programs make the best mouse tests: vim (`-u NONE -N -c 'set
+mouse=a'`) and tmux are installed, and a harness that opens a local-shell
+session, clicks, then asks vim `:echo line('.') col('.')` checks the whole
+path from QMouseEvent to the application.
+
 ## 7. What the sandbox cannot tell you
 
 - **No OS keyring.** `dbus-launch` is absent, so every keyring call returns

@@ -65,6 +65,9 @@ public:
                const QString &sessionsPath = defaultSessionFile(),
                OmegaSettingsManager *omegaSettings = nullptr);
 
+    // Tears the terminals down first; see the definition.
+    ~MainWindow() override;
+
     static QString defaultVaultFile();
 
     // ~/.omega/sessions.db -- nterm-qt's SessionStore schema, in Omega's own

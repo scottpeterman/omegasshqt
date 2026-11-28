@@ -593,10 +593,17 @@ bool TerminalTab::eventFilter(QObject *watched, QEvent *event) {
     // key events do go there, so the two watch different objects on purpose.
     //
     // Returning true here is what stops QAbstractScrollArea scrolling: the
-    // base class has no wheelEvent override of its own in anytermqt, so the
-    // default scrollback behaviour is the thing being suppressed.
+    // base class's wheelEvent would otherwise scroll the scrollback.
+    //
+    // NOT WHILE THE APPLICATION READS THE MOUSE. An application that turned on
+    // mouse reporting (htop, mc, vim with mouse=a, tmux) gets real wheel
+    // events from the widget -- buttons 4 and 5 -- and arrow keys on top of
+    // them would scroll it twice, or move a cursor it did not ask to move.
+    // The arrow-key fallback is for the ones that did not ask: less, man,
+    // vim without mouse.
     if (wheelAltScreen_ && watched == terminal_->viewport() &&
-        event->type() == QEvent::Wheel && terminal_->alternateScreen()) {
+        event->type() == QEvent::Wheel && terminal_->alternateScreen() &&
+        !terminal_->mouseReporting()) {
         if (dispatchAltScreenWheel(static_cast<QWheelEvent *>(event))) {
             return true;
         }
