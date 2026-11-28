@@ -520,6 +520,12 @@ skip packing, signing and version collisions entirely:
 Add-AppxPackage -Register dist\msix\AppxManifest.xml
 ```
 
+> **Since 0.1.x Omega keeps everything in `~\.omega`, not `~\.nterm`**, and no
+> longer shares files with nterm-qt. The test below was run against `~\.nterm`.
+> `~\.omega` sits in the same place under `%USERPROFILE%`, so the same rule
+> should apply, but it has not been re-run; check it on the first MSIX built
+> with the new directory.
+
 **`~\.nterm` is not redirected, which was the question that decided whether any
 of this was worth doing.** MSIX runs packaged applications with filesystem and
 registry redirection, and Omega's whole premise is that `~\.nterm` is *shared*
@@ -606,7 +612,7 @@ rm -f /tmp/probe-vault.json
 their database on the way in. `shell_probe` reuses its config file on purpose,
 since round-tripping an existing one is the thing it tests.
 
-**A geometry or session probe must never be pointed at `~/.nterm`.** Both
+**A geometry or session probe must never be pointed at `~/.omega`.** Both
 `shell_probe` and `session_tree_probe` write. They default to throwaway paths,
 and the defaults are there because the real `sessions.db` is the tree you
 actually use.

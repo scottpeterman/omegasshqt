@@ -5,7 +5,25 @@ has to guess which parts are proven and which are merely written. Nothing in
 the "not verified" list is known broken; it is untested, which is a different
 and more dangerous thing.
 
-Last updated: 2026-08-30 — adds the tab context menu and multi-tab close, the
+Last updated: 2026-11-28 — 0.1.9 to 0.1.11, each released by CI and run on
+Linux, Windows and macOS: Ctrl+Shift+C/V copy and paste in the terminal (the
+copy no longer swallowed by the Credential Manager shortcut), Ctrl+=/- zoom,
+About naming the terminal core and its build (libghostty-vt 1.0.2 ReleaseFast
+SIMD, anytermqt 0.2.3), sessions in a dedicated window (Connect in Window, and
+New under the tree), and full mouse reporting on the libghostty-vt core
+(anytermqt 0.2.3). Mouse reporting confirmed against cmd and edit.exe under
+ConPTY on Windows, htop and btop on macOS over SSH from Windows, and in the
+sandbox against vim with mouse=a end to end -- a click moved vim's cursor to
+the clicked cell and three wheel notches scrolled exactly nine lines, so
+Omega's wheel-to-arrow-keys fallback stays out of the way. Also fixed: exiting
+with tabs open ran a tab's teardown against an already-destroyed registry (a
+segfault under the test harness), and serial sessions in the tree showed a
+stray :22 where the device and baud belong. Earlier in November: libghostty-vt
+as the release core (0.1.6, with a Linux CPU fix in 0.1.7) and local shells
+(0.1.8). Settings and sessions moved from `~/.nterm` to `~/.omega`; entries
+below that name `~/.nterm` are describing the layout of their date.
+
+Previously, 2026-08-30 — adds the tab context menu and multi-tab close, the
 reconnect action, the help and About windows, and packaging on all three
 platforms: a macOS `.app`, a relocatable Linux tarball, a Windows folder and an
 MSIX, each run on the platform it targets — and the MSIX installed and run on a

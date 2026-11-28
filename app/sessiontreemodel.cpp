@@ -65,10 +65,16 @@ QString SessionTreeModel::storedDetail(const Node *n) const {
                                  : n->username + QLatin1Char('@') + hostPort;
 }
 
-// host:port for a network or serial target; the shell's label for a local
-// one, which has no port worth showing.
+// host:port for a network target; the device and its baud for a serial one;
+// the shell's label for a local one. Serial sessions never write the port
+// column, so a host:port subtitle printed whatever it held -- 22, for a
+// session created with the SSH default -- under a device name.
 QString SessionTreeModel::hostLine(const Node *n) {
     if (n->local) return n->hostname;
+    if (n->serial) {
+        return n->baud > 0 ? QStringLiteral("%1 @ %2").arg(n->hostname).arg(n->baud)
+                           : n->hostname;
+    }
     return QStringLiteral("%1:%2").arg(n->hostname).arg(n->port);
 }
 
@@ -134,6 +140,8 @@ void SessionTreeModel::reload() {
         node->hostname = toQ(s.hostname);
         node->port = s.port;
         node->local = s.transport == sessions::SessionTransport::Local;
+        node->serial = s.transport == sessions::SessionTransport::Serial;
+        node->baud = s.serial_baud.value_or(0);
         // For the delegate's subtitle. The session's own username, not the
         // resolved one -- resolution needs the vault and the settings, and a
         // tree row is not worth opening a vault for.

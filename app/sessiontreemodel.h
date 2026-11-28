@@ -166,6 +166,10 @@ private:
         bool expanded = true;
         // A local shell has no port; hostname carries the shell's label.
         bool local = false;
+        // Serial sessions never write port; their subtitle is the device and
+        // its baud. 0 when the session sets no baud of its own.
+        bool serial = false;
+        int baud = 0;
 
         Node *parent = nullptr;
         std::vector<std::unique_ptr<Node>> children;
