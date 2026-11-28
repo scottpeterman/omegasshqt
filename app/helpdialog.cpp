@@ -14,6 +14,8 @@
 
 #include "app/dialogbuttons.h"
 
+#include <qtpyte/vtbackend.h>
+
 #ifndef OMEGA_VERSION
 // Only reachable in a build that did not define it -- a probe target linking
 // the shell without app/CMakeLists.txt's compile definition. Says so rather
@@ -245,6 +247,18 @@ is what "Forget keyring entry" does; it does not touch the vault itself.</li>
 
 QString omegaVersion() { return QStringLiteral(OMEGA_VERSION); }
 
+// The emulation core this build was configured with, asked of the library
+// rather than recorded at configure time here: anytermqt picks it, and a
+// second copy of that decision is one that can disagree. A throwaway 1x1
+// backend is cheap, and the About box is opened by hand.
+QString terminalCore() {
+    const auto backend = qtpyte::createVtBackend(1, 1, 0);
+    const QString name = backend ? QString::fromLatin1(backend->name()) : QString();
+    if (name == QLatin1String("ghostty")) return QStringLiteral("libghostty-vt");
+    if (name == QLatin1String("pyte")) return QStringLiteral("pyte");
+    return name.isEmpty() ? QObject::tr("unknown") : name;
+}
+
 // The licence page.
 //
 // LGPLv3 SECTION 4 IS WHY THIS EXISTS, not tidiness. Conveying a combined work
@@ -293,6 +307,9 @@ with another build of the same version. Full text:
 <tr><td><b>Qt 6</b></td><td>LGPL-3.0</td><td>dynamically linked</td></tr>
 <tr><td><b>anytermqt</b> (qtpyte, pyte)</td><td>GPL-3.0</td>
     <td>terminal widget and emulation core</td></tr>
+<tr><td><b>libghostty-vt</b></td><td>MIT</td>
+    <td>emulation core in ghostty builds; includes simdutf, Highway, Wuffs and
+    uucode</td></tr>
 <tr><td><b>utf8proc</b></td><td>MIT, Unicode data licence</td>
     <td>UTF-8 decoding, character widths</td></tr>
 <tr><td><b>Go runtime and standard library</b></td><td>BSD-3-Clause</td>
@@ -344,15 +361,15 @@ QString aboutHtml(const QString &linkColor) {
     // comment explaining at length why it was indispensable. Nothing rendered
     // wrong; there was simply no link.
     //
-    // The repository is the one from go.mod's module path -- the authoritative
-    // statement of where this code lives -- rather than a URL typed from
-    // memory. NO LICENCE LINE: the header says the licence is stated here and
-    // there is no LICENSE file in the tree and no HOMEPAGE in CMakeLists, so
-    // there is nothing to state that would not be invented.
+    // The repository is omegasshqt. go.mod's module path still says omegassh,
+    // the name before the rename; GitHub redirects that, but the About box
+    // should name where the code lives now.
+    //
+    // %3 is the terminal core, asked of anytermqt at run time.
     return QObject::tr(R"(
-<p><b>Version %1</b></p>
-<p>A terminal for network gear: SSH, telnet and serial in one window, with a
-session tree and an encrypted credential vault.</p>
+<p><b>Version %1</b> &nbsp;&middot;&nbsp; terminal core: %3</p>
+<p>A terminal for network gear: SSH, telnet, serial and local shells in one
+window, with a session tree and an encrypted credential vault.</p>
 <p>Built on a Go transport core reached through a C ABI, and the anytermqt
 terminal widget.</p>
 <p>Free software under the GNU General Public License v3. This program uses
@@ -360,10 +377,10 @@ the Qt Toolkit under the GNU Lesser General Public License v3; Qt is
 copyright The Qt Company Ltd and other contributors. See
 <b>Help &gt; Omega Help &gt; Licences</b>, and the licence files shipped
 alongside the application.</p>
-<p><a href="https://github.com/scottpeterman/omegassh"%2>github.com/scottpeterman/omegassh</a></p>
+<p><a href="https://github.com/scottpeterman/omegasshqt"%2>github.com/scottpeterman/omegasshqt</a></p>
 
 )")
-        .arg(omegaVersion(), style);
+        .arg(omegaVersion(), style, terminalCore());
 }
 
 AboutDialog::AboutDialog(const QString &linkColor, QWidget *parent)
