@@ -125,7 +125,9 @@ public:
     // Builds a Config from a stored session and opens it. The tree's connect
     // path and the tab it produces go through openTab like every other route,
     // so theming, titling and the close path cannot diverge between them.
-    void openSession(const sessions::Session &session);
+    // inWindow opens it in a dedicated top-level window instead of a tab
+    // (the tree's "Connect in Window"). Same resolve, same prompts.
+    void openSession(const sessions::Session &session, bool inWindow = false);
 
     // Adds a tab for an already-built config and starts it. The one place a
     // tab is created, so theming, titling and the close path cannot diverge
@@ -133,7 +135,13 @@ public:
     // Takes a RESOLVED pair rather than a Config: every caller has already
     // decided what the session overrides and what it inherits, so this
     // function reads no settings of its own. See effectiveconfig.h.
-    void openTab(const Resolved &resolved, qint64 sessionId = -1);
+    //
+    // inWindow: the tab is the whole content of its own window rather than a
+    // page of tabs_. Everything below the construction is shared; the few
+    // places that touch the tab strip go through the tab*() helpers, which
+    // know which kind of host a tab has.
+    void openTab(const Resolved &resolved, qint64 sessionId = -1,
+                 bool inWindow = false);
 
     // Tab management. Public for the same reason openTab is: the tab bar's
     // close button and Ctrl+W reach these now, and a tree context menu and a
@@ -336,6 +344,26 @@ private:
     QString sessionError_;
 
     QVector<QPointer<QWidget>> windows_;
+
+    // --- detached session windows ------------------------------------------
+    //
+    // A tab opened with inWindow lives here instead of in tabs_. QPointer, so
+    // a window closed by the user drops out on its own.
+    QVector<QPointer<class TerminalTab>> detached_;
+
+    bool isDetached(const class TerminalTab *tab) const;
+    // In tabs_ or a live detached window: false once it has been closed.
+    bool tabAlive(const class TerminalTab *tab) const;
+    // The tab-strip text for a tab, or the window title for a detached one.
+    void setTabLabel(class TerminalTab *tab, const QString &text);
+    // Make the tab the one in front: current tab, or raise its window.
+    void bringTabForward(class TerminalTab *tab);
+    // Where a tab's status messages go: the main bar while it is the current
+    // tab, its own window's bar when detached, nowhere otherwise.
+    QStatusBar *statusBarFor(const class TerminalTab *tab);
+    // Every open terminal, tabbed and detached, for the live settings and
+    // theme walks.
+    QVector<class TerminalTab *> allTabs() const;
 };
 
 }  // namespace omega::app

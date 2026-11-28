@@ -42,6 +42,7 @@
 #include <QFont>
 #include <QGuiApplication>
 #include <QScreen>
+#include <QShortcut>
 #include <QTimer>
 #include <QWindow>
 #include <QVBoxLayout>
@@ -226,16 +227,7 @@ void MainWindow::buildUi() {
     connect(treePane_, &SessionTreePane::connectRequested, this,
             [this](const sessions::Session &session,
                    SessionTreePane::ConnectMode mode) {
-                if (mode == SessionTreePane::InWindow) {
-                    // Phase 5 owns the detached window. Named rather than
-                    // silently opening a tab instead: a menu item that does
-                    // the other thing is worse than one that says it is not
-                    // here yet.
-                    notImplemented(tr("Connect in a separate window"),
-                                   QStringLiteral("5"));
-                    return;
-                }
-                openSession(session);
+                openSession(session, mode == SessionTreePane::InWindow);
             });
     connect(treePane_, &SessionTreePane::quickConnectRequested, this,
             &MainWindow::quickConnect);
@@ -764,6 +756,12 @@ void MainWindow::applyTheme(const theme::Theme &t) {
             tabs_->setTabIcon(i, linkDotIcon(tab->link(), tokens));
         }
     }
+    // Detached session windows: their stylesheet came from the windows_ walk
+    // above; the terminal inside needs the same second pass. No dot -- there
+    // is no tab strip to put it on.
+    for (const auto &d : detached_) {
+        if (d) d->applyTheme(themeForTab(d.data(), t));
+    }
 }
 
 // --- the frameless window's resize edges -----------------------------------
@@ -973,10 +971,8 @@ void MainWindow::applySettingsToTabs() {
     const OmegaSettings &o =
         omegaSettings_ ? omegaSettings_->settings() : fallbackOmega_;
 
-    for (int i = 0; i < tabs_->count(); ++i) {
-        auto *tab = qobject_cast<TerminalTab *>(tabs_->widget(i));
-        if (!tab) continue;
-
+    // allTabs(): detached session windows take the same live settings.
+    for (TerminalTab *tab : allTabs()) {
         // Re-read rather than cached: the session may have been edited since
         // the tab was opened, and the store is the only thing that knows. A
         // quick-connect tab has no id and a saved session may have been
@@ -1052,7 +1048,7 @@ void MainWindow::quickConnect() {
                                                : OmegaSettings{}));
 }
 
-void MainWindow::openSession(const sessions::Session &session) {
+void MainWindow::openSession(const sessions::Session &session, bool inWindow) {
     // Everything the session says, everything it does not say from the
     // globals. See effectiveconfig.h -- this function used to hold that logic
     // and now holds none of it.
@@ -1120,11 +1116,119 @@ void MainWindow::openSession(const sessions::Session &session) {
         }
     }
 
-    openTab(resolved, session.id ? *session.id : -1);
+    openTab(resolved, session.id ? *session.id : -1, inWindow);
 }
 
-void MainWindow::openTab(const Resolved &resolved, qint64 sessionId) {
-    auto *tab = new TerminalTab(tabs_);
+namespace {
+
+// A session in a window of its own: one TerminalTab and a status bar, nothing
+// else. A child of the main window with Qt::Window, so it is a top-level
+// window that is still destroyed with the application's main window.
+//
+// terminate() on close, because nothing else will: TerminalTab has no
+// destructor that ends the session, and MainWindow::closeTab calls it
+// explicitly for the same reason.
+class SessionWindow : public QMainWindow {
+public:
+    explicit SessionWindow(QWidget *parent) : QMainWindow(parent, Qt::Window) {
+        setAttribute(Qt::WA_DeleteOnClose);
+        // Ctrl+W / Cmd+W closes it, as it closes a tab in the main window.
+        auto *close = new QShortcut(QKeySequence::Close, this);
+        connect(close, &QShortcut::activated, this, &QWidget::close);
+    }
+    TerminalTab *tab = nullptr;
+
+protected:
+    void closeEvent(QCloseEvent *event) override {
+        if (tab) tab->terminate();
+        QMainWindow::closeEvent(event);
+    }
+};
+
+}  // namespace
+
+bool MainWindow::isDetached(const TerminalTab *tab) const {
+    if (!tab) return false;
+    for (const auto &t : detached_) {
+        if (t.data() == tab) return true;
+    }
+    return false;
+}
+
+bool MainWindow::tabAlive(const TerminalTab *tab) const {
+    if (!tab) return false;
+    return isDetached(tab) ||
+           tabs_->indexOf(const_cast<TerminalTab *>(tab)) >= 0;
+}
+
+void MainWindow::setTabLabel(TerminalTab *tab, const QString &text) {
+    if (isDetached(tab)) {
+        tab->window()->setWindowTitle(
+            QStringLiteral("%1 \u2014 Omega").arg(text));
+        return;
+    }
+    const int at = tabs_->indexOf(tab);
+    if (at >= 0) tabs_->setTabText(at, text);
+}
+
+void MainWindow::bringTabForward(TerminalTab *tab) {
+    if (isDetached(tab)) {
+        QWidget *w = tab->window();
+        if (w->isMinimized()) w->showNormal();
+        w->raise();
+        w->activateWindow();
+        return;
+    }
+    if (tabs_->indexOf(tab) >= 0) {
+        tabs_->setCurrentWidget(tab);
+        raise();
+        activateWindow();
+    }
+}
+
+QStatusBar *MainWindow::statusBarFor(const TerminalTab *tab) {
+    if (isDetached(tab)) {
+        if (auto *w = qobject_cast<QMainWindow *>(tab->window())) {
+            return w->statusBar();
+        }
+        return nullptr;
+    }
+    return tabs_->currentWidget() == tab ? statusBar() : nullptr;
+}
+
+QVector<TerminalTab *> MainWindow::allTabs() const {
+    QVector<TerminalTab *> out;
+    for (int i = 0; i < tabs_->count(); ++i) {
+        if (auto *tab = qobject_cast<TerminalTab *>(tabs_->widget(i))) {
+            out.append(tab);
+        }
+    }
+    for (const auto &t : detached_) {
+        if (t) out.append(t.data());
+    }
+    return out;
+}
+
+void MainWindow::openTab(const Resolved &resolved, qint64 sessionId,
+                         bool inWindow) {
+    // The host first, so the tab is parented to what it will live in.
+    SessionWindow *win = nullptr;
+    if (inWindow) {
+        win = new SessionWindow(this);
+        // The main window's sheet: registerWindow keeps it in step from here
+        // on, but the first one has to be handed over.
+        win->setStyleSheet(styleSheet());
+        registerWindow(win);
+    }
+
+    auto *tab = new TerminalTab(win ? static_cast<QWidget *>(win)
+                                    : static_cast<QWidget *>(tabs_));
+    if (win) {
+        win->tab = tab;
+        win->setCentralWidget(tab);
+        win->statusBar();  // created now, so messages have somewhere to go
+        detached_.append(QPointer<TerminalTab>(tab));
+    }
     tab->setSessionId(sessionId);
 
     // Registered before it dials, so the row shows a dot from the first frame
@@ -1136,7 +1240,7 @@ void MainWindow::openTab(const Resolved &resolved, qint64 sessionId) {
                 // The tab's own dot. Looked up by widget rather than captured
                 // as an index, because a tab that was moved or one closed
                 // before it has an index that no longer means anything.
-                const int at = tabs_->indexOf(tab);
+                const int at = isDetached(tab) ? -1 : tabs_->indexOf(tab);
                 if (at >= 0) {
                     tabs_->setTabIcon(
                         at, linkDotIcon(link, theme::tokensFromTheme(
@@ -1180,45 +1284,57 @@ void MainWindow::openTab(const Resolved &resolved, qint64 sessionId) {
 
     tab->setWheelAltScreen(resolved.tab.wheelAltScreen);
 
-    const int index = tabs_->addTab(tab, tr("connecting..."));
+    if (win) {
+        // Two thirds of the main window, offset so it does not open exactly
+        // over it. Shown BEFORE start(): start() reads the window's layout to
+        // size the first dial (see TerminalTab::start).
+        win->resize(qMax(640, width() * 2 / 3), qMax(400, height() * 2 / 3));
+        win->move(pos() + QPoint(40, 40));
+        setTabLabel(tab, tr("connecting..."));
+        win->show();
+        win->raise();
+        win->activateWindow();
+    } else {
+        const int index = tabs_->addTab(tab, tr("connecting..."));
 
-    // The tab's own close button. setTabsClosable(true) alone gives you
-    // QStyle::SP_TabCloseButton, which under Fusion is a red cross that
-    // belongs to no theme -- and the ported sheet's answer to that,
-    // `image: none`, does not remove it so much as make it invisible: measured
-    // at 20x20, still clickable, one distinct colour drawn. A widget of our
-    // own is the only way to theme it, so the same painted glyph the title bar
-    // uses does the job at a smaller size.
-    auto *closeButton = new WindowButton(WindowButton::Close, tabs_->tabBar());
-    closeButton->setFixedSize(18, 18);
-    connect(closeButton, &QAbstractButton::clicked, this, [this, tab] {
-        const int at = tabs_->indexOf(tab);
-        if (at >= 0) closeTab(at);
-    });
-    tabs_->tabBar()->setTabButton(index, QTabBar::RightSide, closeButton);
-    if (const theme::Theme *t = themes_->get(themeName_.toStdString())) {
-        closeButton->setTokens(theme::tokensFromTheme(*t));
+        // The tab's own close button. setTabsClosable(true) alone gives you
+        // QStyle::SP_TabCloseButton, which under Fusion is a red cross that
+        // belongs to no theme -- and the ported sheet's answer to that,
+        // `image: none`, does not remove it so much as make it invisible: measured
+        // at 20x20, still clickable, one distinct colour drawn. A widget of our
+        // own is the only way to theme it, so the same painted glyph the title bar
+        // uses does the job at a smaller size.
+        auto *closeButton = new WindowButton(WindowButton::Close, tabs_->tabBar());
+        closeButton->setFixedSize(18, 18);
+        connect(closeButton, &QAbstractButton::clicked, this, [this, tab] {
+            const int at = tabs_->indexOf(tab);
+            if (at >= 0) closeTab(at);
+        });
+        tabs_->tabBar()->setTabButton(index, QTabBar::RightSide, closeButton);
+        if (const theme::Theme *t = themes_->get(themeName_.toStdString())) {
+            closeButton->setTokens(theme::tokensFromTheme(*t));
+        }
+
+        tabs_->setCurrentIndex(index);
     }
-
-    tabs_->setCurrentIndex(index);
 
     connect(tab, &TerminalTab::statusChanged, this,
             [this, tab](const QString &text) {
-                // Only the visible tab writes to the status bar. Four tabs
-                // dialing at once would otherwise fight over it.
-                if (tabs_->currentWidget() == tab) {
-                    statusBar()->showMessage(text, 4000);
+                // Only the visible tab writes to the main status bar. Four
+                // tabs dialing at once would otherwise fight over it. A
+                // detached window has a bar of its own.
+                if (QStatusBar *bar = statusBarFor(tab)) {
+                    bar->showMessage(text, 4000);
                 }
             });
 
     connect(tab, &TerminalTab::finished, this, [this, tab](int) {
-        const int at = tabs_->indexOf(tab);
-        if (at < 0) return;
+        if (!tabAlive(tab)) return;
         // The tab is NOT closed on its own. A session that failed leaves the
         // reason on the overlay, and a session that ended leaves its
         // scrollback -- both are things people read after the fact. Closing
         // here would take the answer away at the moment it was wanted.
-        tabs_->setTabText(at, tr("%1 (closed)").arg(tab->title()));
+        setTabLabel(tab, tr("%1 (closed)").arg(tab->title()));
     });
 
     // The other direction. Nothing else takes "(closed)" back off, so without
@@ -1226,9 +1342,8 @@ void MainWindow::openTab(const Resolved &resolved, qint64 sessionId) {
     // ended -- and the tab text is the only place a tab that is not in front
     // says anything at all.
     connect(tab, &TerminalTab::restarted, this, [this, tab] {
-        const int at = tabs_->indexOf(tab);
-        if (at < 0) return;
-        tabs_->setTabText(at, tab->title());
+        if (!tabAlive(tab)) return;
+        setTabLabel(tab, tab->title());
     });
 
     // --- a question only a person can answer --------------------------------
@@ -1239,17 +1354,22 @@ void MainWindow::openTab(const Resolved &resolved, qint64 sessionId) {
     connect(tab, &TerminalTab::keyboardQuestion, this,
             [this, tab](const QString &target, const QString &question,
                         bool secret, int attempt, int limit) {
-                if (tabs_->indexOf(tab) < 0) return;
-                tabs_->setCurrentWidget(tab);
+                if (!tabAlive(tab)) return;
+                bringTabForward(tab);
 
+                // Parented to the window the tab is in, so a detached
+                // session's prompt opens over that window, not the main one.
                 KeyboardPromptDialog dialog(target, question, secret, attempt,
-                                            limit, this);
+                                            limit, tab->window());
                 if (dialog.exec() != QDialog::Accepted) {
+                    if (!tabAlive(tab)) return;
                     tab->abandonKeyboardRetry();
-                    statusBar()->showMessage(tr("Connection cancelled."), 4000);
+                    if (QStatusBar *bar = statusBarFor(tab)) {
+                        bar->showMessage(tr("Connection cancelled."), 4000);
+                    }
                     return;
                 }
-                if (tabs_->indexOf(tab) < 0) return;
+                if (!tabAlive(tab)) return;
 
                 // An empty answer is sent as given rather than treated as a
                 // cancel: some stacks accept an empty response for an
@@ -1272,25 +1392,28 @@ void MainWindow::openTab(const Resolved &resolved, qint64 sessionId) {
             [this, tab](const QString &target) {
                 // The window may have gone away under a modal, and the tab may
                 // have been closed while the prompt was being raised.
-                if (tabs_->indexOf(tab) < 0) return;
+                if (!tabAlive(tab)) return;
 
                 // The tab it happened on, brought to the front first. Four
                 // tabs dialing at once means the prompt has to say which one
                 // it belongs to, and moving to it says so better than the
                 // title alone.
-                tabs_->setCurrentWidget(tab);
+                bringTabForward(tab);
 
                 CredentialPromptDialog dialog(
                     target, vault_.get(),
-                    CredentialPromptDialog::Reason::Rejected, this);
+                    CredentialPromptDialog::Reason::Rejected, tab->window());
                 if (dialog.exec() != QDialog::Accepted) {
+                    if (!tabAlive(tab)) return;
                     tab->abandonCredentialRetry();
-                    statusBar()->showMessage(tr("Connection cancelled."), 4000);
+                    if (QStatusBar *bar = statusBarFor(tab)) {
+                        bar->showMessage(tr("Connection cancelled."), 4000);
+                    }
                     return;
                 }
 
                 // Closed under the modal. Nothing to retry into.
-                if (tabs_->indexOf(tab) < 0) return;
+                if (!tabAlive(tab)) return;
 
                 tab->retryWithCredentials(
                     dialog.credential(), vault_ ? vault_->handle() : 0,
@@ -1300,14 +1423,16 @@ void MainWindow::openTab(const Resolved &resolved, qint64 sessionId) {
     if (!tab->start(withDefaults)) {
         // A configuration mistake, decided before anything was opened. The
         // reason is already on the overlay; the tab stays so it can be read.
-        tabs_->setTabText(index, tr("failed"));
-        statusBar()->showMessage(tab->error(), 8000);
+        setTabLabel(tab, tr("failed"));
+        if (QStatusBar *bar = win ? win->statusBar() : statusBar()) {
+            bar->showMessage(tab->error(), 8000);
+        }
         return;
     }
 
     // summary() is populated the moment start() returns rather than when the
     // dial lands, so the tab is titled while it is still connecting.
-    tabs_->setTabText(index, tab->title());
+    setTabLabel(tab, tab->title());
 }
 
 void MainWindow::closeTab(int index) {
@@ -1638,6 +1763,15 @@ void MainWindow::closeEvent(QCloseEvent *event) {
     }
 
     QMainWindow::closeEvent(event);
+
+    // Detached session windows go with the main window. Left open, they
+    // would keep the application running headless of its session tree and
+    // menus; closing each runs its own terminate().
+    if (event->isAccepted()) {
+        for (const auto &t : detached_) {
+            if (t) t->window()->close();
+        }
+    }
 }
 
 }  // namespace omega::app

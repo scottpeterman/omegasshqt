@@ -28,7 +28,7 @@
   <Identity
     Name="ScottPeterman.Omega"
     Publisher="CN=Scott Peterman"
-    Version="0.1.9.0"
+    Version="0.1.10.0"
     ProcessorArchitecture="x64" />
 
   <Properties>
